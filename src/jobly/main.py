@@ -96,29 +96,24 @@ async def on_startup(bot: Bot) -> None:
 def _setup_scheduler(bot: Bot) -> None:
     try:
         from apscheduler import AsyncScheduler
-        from apscheduler.triggers.interval import IntervalTrigger
 
+        from jobly.workers.scheduler import set_bot
+
+        set_bot(bot)
         scheduler = AsyncScheduler()
-
-        async def hourly_scrape_job() -> None:
-            from jobly.workers.scrape import run_scrape_cycle
-            from jobly.workers.notify import notify_users_for_jobs
-
-            new_jobs = await run_scrape_cycle()
-            if new_jobs:
-                await notify_users_for_jobs(bot, new_jobs)
-
-        asyncio.get_event_loop().create_task(_start_scheduler(scheduler, hourly_scrape_job))
+        asyncio.get_event_loop().create_task(_start_scheduler(scheduler))
     except ImportError:
         logger.warning("APScheduler not available, skipping scheduled tasks")
 
 
-async def _start_scheduler(scheduler, job_func) -> None:
+async def _start_scheduler(scheduler) -> None:
     from apscheduler.triggers.interval import IntervalTrigger
+
+    from jobly.workers.scheduler import hourly_scrape_job
 
     async with scheduler:
         await scheduler.add_schedule(
-            job_func,
+            hourly_scrape_job,
             IntervalTrigger(hours=1),
             id="hourly_scrape",
         )
