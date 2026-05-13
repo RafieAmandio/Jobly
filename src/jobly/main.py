@@ -35,18 +35,23 @@ def create_dispatcher() -> Dispatcher:
     from jobly.bot.middlewares.auth import AuthMiddleware
     from jobly.bot.middlewares.db import DbSessionMiddleware
     from jobly.bot.middlewares.i18n import I18nMiddleware
+    from jobly.bot.middlewares.throttle import ThrottleMiddleware
 
     dp.update.outer_middleware(DbSessionMiddleware())
     dp.update.outer_middleware(AuthMiddleware())
     dp.update.outer_middleware(I18nMiddleware())
+    dp.message.middleware(ThrottleMiddleware())
 
-    from jobly.bot.handlers import credits, cv, profile, start, tailor
+    from jobly.bot.handlers import admin, browse, credits, cv, preferences, profile, start, tailor
 
     dp.include_router(start.router)
     dp.include_router(profile.router)
+    dp.include_router(preferences.router)
     dp.include_router(credits.router)
     dp.include_router(cv.router)
+    dp.include_router(browse.router)
     dp.include_router(tailor.router)
+    dp.include_router(admin.router)
 
     return dp
 
