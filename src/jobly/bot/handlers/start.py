@@ -1,5 +1,5 @@
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,12 +65,24 @@ async def on_email(message: Message, state: FSMContext) -> None:
     await message.answer(t("ask_phone", lang))
 
 
+@router.message(OnboardingState.phone, Command("skip"))
+async def on_phone_skip(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("language", "id")
+    await state.update_data(phone=None, selected_categories=set())
+    await state.set_state(OnboardingState.categories)
+    await message.answer(
+        t("ask_categories", lang),
+        reply_markup=category_keyboard(page=0, lang=lang),
+    )
+
+
 @router.message(OnboardingState.phone)
 async def on_phone(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
 
-    phone = None if message.text.strip() == "/skip" else message.text.strip()
+    phone = message.text.strip() if message.text else None
     await state.update_data(phone=phone, selected_categories=set())
     await state.set_state(OnboardingState.categories)
     await message.answer(
