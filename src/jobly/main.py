@@ -13,11 +13,37 @@ logger = logging.getLogger(__name__)
 
 
 def setup_logging() -> None:
+    import structlog
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer() if not settings.is_production else structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, settings.log_level.upper(), logging.INFO)
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
     logging.basicConfig(
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    if settings.sentry_dsn:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=0.1,
+            environment=settings.app_env,
+        )
 
 
 def create_bot() -> Bot:
@@ -42,7 +68,7 @@ def create_dispatcher() -> Dispatcher:
     dp.update.outer_middleware(I18nMiddleware())
     dp.message.middleware(ThrottleMiddleware())
 
-    from jobly.bot.handlers import admin, browse, credits, cv, preferences, profile, start, tailor
+    from jobly.bot.handlers import admin, browse, credits, cv, preferences, profile, referral, start, tailor
 
     dp.include_router(start.router)
     dp.include_router(profile.router)
@@ -51,6 +77,7 @@ def create_dispatcher() -> Dispatcher:
     dp.include_router(cv.router)
     dp.include_router(browse.router)
     dp.include_router(tailor.router)
+    dp.include_router(referral.router)
     dp.include_router(admin.router)
 
     return dp
