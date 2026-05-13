@@ -315,7 +315,7 @@ Brief description (2-3 lines)...
 | **DOCX Generation** | python-docx | Full control over Word document formatting |
 | **PDF Generation** | WeasyPrint | HTML/CSS to PDF — professional, pixel-perfect CV rendering |
 | **CV Parsing** | pdfplumber | Extract text from uploaded PDF CVs |
-| **Web Scraping** | SerpAPI + httpx + BeautifulSoup4 | SerpAPI for LinkedIn/Indeed/Glassdoor; direct scraping for local boards |
+| **Web Scraping** | Apify + httpx + BeautifulSoup4 | Apify actors for LinkedIn/Indeed/Glassdoor; direct scraping for local boards. Provider-agnostic adapter pattern |
 | **Deployment** | VPS (Ubuntu) + Docker Compose | Simple, cost-effective for Indonesia-region hosting |
 | **Reverse Proxy** | Nginx | Webhook endpoint, SSL termination |
 | **Monitoring** | Sentry + structured logging | Error tracking, performance monitoring |
@@ -372,14 +372,17 @@ jobly/
 │       │   └── notification.py        # Send job notifications to users
 │       ├── scrapers/
 │       │   ├── __init__.py
-│       │   ├── base.py                # Abstract scraper interface
-│       │   ├── linkedin.py            # LinkedIn via SerpAPI
-│       │   ├── indeed.py              # Indeed via SerpAPI
-│       │   ├── glassdoor.py           # Glassdoor via SerpAPI
-│       │   ├── jobstreet.py           # Jobstreet direct scrape
-│       │   ├── glints.py              # Glints direct scrape
-│       │   ├── kalibrr.py             # Kalibrr direct scrape
-│       │   ├── karir.py               # Karir.com direct scrape
+│       │   ├── base.py                # JobProvider protocol + JobResult schema
+│       │   ├── registry.py            # Provider registry + factory
+│       │   ├── providers/
+│       │   │   ├── __init__.py
+│       │   │   ├── apify.py           # Apify adapter (LinkedIn, Indeed, Glassdoor, JobStreet)
+│       │   │   └── direct.py          # Direct scrape adapter (Glints, Kalibrr, Karir.com)
+│       │   ├── parsers/
+│       │   │   ├── __init__.py
+│       │   │   ├── glints.py          # Glints HTML parser
+│       │   │   ├── kalibrr.py         # Kalibrr HTML parser
+│       │   │   └── karir.py           # Karir.com HTML parser
 │       │   └── dedup.py               # Cross-source deduplication
 │       ├── models/
 │       │   ├── __init__.py
@@ -679,17 +682,57 @@ response = await client.chat.completions.create(
 - `POST /v2/invoices` — Create payment invoice
 - Webhook: invoice status callback
 
-### 8.3 Job Scraping Sources
+### 8.3 Job Scraping — Provider-Agnostic Architecture
 
-| Source | Method | Rate Limit |
-|--------|--------|------------|
-| LinkedIn | SerpAPI (Google Jobs) | 100 req/month (free) |
-| Indeed | SerpAPI | Shared with above |
-| Glassdoor | SerpAPI | Shared with above |
-| JobStreet | Direct scrape (httpx + BS4) | 5 req/min self-imposed |
-| Glints | Direct scrape | 5 req/min |
-| Kalibrr | Direct scrape | 5 req/min |
-| Karir.com | Direct scrape | 5 req/min |
+All scrapers implement a common `JobProvider` protocol. The job engine never talks to a specific
+scraper — it talks to the protocol. Providers can be swapped, added, or removed via config without
+touching the matching/notification layer.
+
+```python
+class JobResult(BaseModel):
+    external_id: str
+    source: str
+    title: str
+    company: str
+    description: str
+    location: str
+    url: str
+    salary_min: int | None
+    salary_max: int | None
+    work_arrangement: str | None
+    posted_at: datetime | None
+
+class JobProvider(Protocol):
+    name: str
+    async def fetch_jobs(self, filters: JobFilters) -> list[JobResult]: ...
+    async def health_check(self) -> bool: ...
+```
+
+**Registered Providers:**
+
+| Source | Provider | Method | Notes |
+|--------|----------|--------|-------|
+| LinkedIn | ApifyProvider | Apify actor `apify/linkedin-jobs-scraper` | Pay-per-use, reliable |
+| Indeed | ApifyProvider | Apify actor `misceres/indeed-scraper` | Pay-per-use |
+| Glassdoor | ApifyProvider | Apify actor `easyapi/glassdoor-jobs` | Pay-per-use |
+| JobStreet | ApifyProvider | Apify actor or DirectScrapeProvider | Fallback to direct |
+| Glints | DirectScrapeProvider | httpx + custom parser | Free, self-hosted |
+| Kalibrr | DirectScrapeProvider | httpx + custom parser | Free, self-hosted |
+| Karir.com | DirectScrapeProvider | httpx + custom parser | Free, self-hosted |
+
+**Provider config (in .env or DB):**
+```json
+{
+  "providers": {
+    "linkedin": { "type": "apify", "actor_id": "apify/linkedin-jobs-scraper", "enabled": true },
+    "glints": { "type": "direct", "parser": "glints", "enabled": true }
+  }
+}
+```
+
+To swap a provider (e.g., move LinkedIn from Apify to RapidAPI), just create a new
+`RapidAPIProvider` implementing `JobProvider` and update the config. Zero changes to
+the rest of the codebase.
 
 ---
 
@@ -976,7 +1019,7 @@ VPS (e.g., IDCloudHost / DigitalOcean SGP region)
 | VPS (2 vCPU, 4GB RAM) | ~$12-20 |
 | Supabase (Free → Pro) | $0-25 |
 | Redis (on VPS) | $0 |
-| SerpAPI (100 searches) | $50 |
+| Apify (pay-per-use) | ~$10-30 |
 | Kimi 2.6 API | ~$20-50 (usage-based) |
 | Xendit | 0.8% per transaction |
 | Domain + SSL | ~$12/year |
@@ -1060,7 +1103,7 @@ VPS (e.g., IDCloudHost / DigitalOcean SGP region)
 
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|-----------|-----------|
-| Job boards block scrapers | High | Medium | Use SerpAPI as primary, rotate user agents, respect rate limits, have fallback sources |
+| Job boards block scrapers | High | Medium | Use Apify actors (maintained by community), provider-agnostic adapter allows quick swap to alternatives, direct scrape as fallback |
 | Kimi 2.6 API downtime | Medium | Low | Queue failed requests for retry, cache recent outputs |
 | Low initial adoption | Medium | Medium | Free welcome credits, referral program, target university job fairs |
 | CV quality issues | High | Medium | Template testing, user feedback loop, multiple template options |
@@ -1113,7 +1156,7 @@ XENDIT_SECRET_KEY=
 XENDIT_WEBHOOK_TOKEN=
 
 # Scraping
-SERPAPI_KEY=
+APIFY_API_TOKEN=
 
 # App
 APP_ENV=production
