@@ -1,0 +1,50 @@
+[project]
+name = "jobly"
+version = "0.1.0"
+description = "Telegram bot for Indonesian job seekers — job matching, CV tailoring, and cover letter generation"
+readme = "README.md"
+authors = [
+    { name = "Rafie Amandio", email = "88525718+RafieAmandio@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.27.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30.0",
+    "alembic>=1.15.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "redis>=5.0",
+    "arq>=0.26",
+    "apscheduler>=4.0",
+    "openai>=1.60.0",
+    "httpx>=0.28.0",
+    "python-docx>=1.1.0",
+    "weasyprint>=63.0",
+    "pdfplumber>=0.11.0",
+    "beautifulsoup4>=4.12.0",
+    "selectolax>=0.3.0",
+    "apify-client>=1.8.0",
+    "jinja2>=3.1.0",
+    "python-dotenv>=1.0.0",
+    "sentry-sdk>=2.0",
+    "structlog>=24.0",
+]
+
+[project.scripts]
+jobly = "jobly.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
