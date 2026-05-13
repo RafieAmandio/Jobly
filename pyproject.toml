@@ -34,6 +34,13 @@ dependencies = [
 [project.scripts]
 jobly = "jobly.main:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
