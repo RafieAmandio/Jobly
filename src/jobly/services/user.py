@@ -3,6 +3,7 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from jobly.models.reference import Category, Location, WorkArrangement
 from jobly.models.user import User, UserCategory, UserLocation, UserPreference, UserWorkArrangement
@@ -13,7 +14,11 @@ def _generate_referral_code() -> str:
 
 
 async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int) -> User | None:
-    result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+    result = await session.execute(
+        select(User)
+        .where(User.telegram_id == telegram_id)
+        .options(selectinload(User.preferences))
+    )
     return result.scalar_one_or_none()
 
 

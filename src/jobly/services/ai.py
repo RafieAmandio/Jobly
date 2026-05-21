@@ -59,8 +59,7 @@ async def tailor_cv_content(
                     ),
                 },
             ],
-            temperature=0.7,
-            response_format={"type": "json_object"},
+            temperature=1,
         )
         content = response.choices[0].message.content
         return json.loads(content)
@@ -104,7 +103,7 @@ async def generate_cover_letter_content(
                     ),
                 },
             ],
-            temperature=0.7,
+            temperature=1,
         )
         return response.choices[0].message.content
     except Exception:
@@ -139,8 +138,7 @@ async def classify_job(title: str, description: str) -> list[dict]:
                     "content": f"Job Title: {title}\n\nDescription:\n{description[:2000]}",
                 },
             ],
-            temperature=0.3,
-            response_format={"type": "json_object"},
+            temperature=1,
         )
         content = response.choices[0].message.content
         data = json.loads(content)

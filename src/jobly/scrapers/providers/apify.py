@@ -122,7 +122,7 @@ class ApifyProvider:
     async def health_check(self) -> bool:
         try:
             client = self._get_client()
-            actor = await client.actor(self.actor_id).get()
-            return actor is not None
+            user = await client.user().get()
+            return user is not None
         except Exception:
             return False
