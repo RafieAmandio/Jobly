@@ -69,7 +69,7 @@ async def on_email(message: Message, state: FSMContext) -> None:
 async def on_phone_skip(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
-    await state.update_data(phone=None, selected_categories=set())
+    await state.update_data(phone=None, selected_categories=[])
     await state.set_state(OnboardingState.categories)
     await message.answer(
         t("ask_categories", lang),
@@ -83,7 +83,7 @@ async def on_phone(message: Message, state: FSMContext) -> None:
     lang = data.get("language", "id")
 
     phone = message.text.strip() if message.text else None
-    await state.update_data(phone=phone, selected_categories=set())
+    await state.update_data(phone=phone, selected_categories=[])
     await state.set_state(OnboardingState.categories)
     await message.answer(
         t("ask_categories", lang),
@@ -96,12 +96,12 @@ async def on_category_select(callback: CallbackQuery, state: FSMContext) -> None
     data = await state.get_data()
     lang = data.get("language", "id")
     idx = int(callback.data.split(":")[1])
-    selected: set[int] = data.get("selected_categories", set())
+    selected: list[int] = data.get("selected_categories", [])
 
     if idx in selected:
-        selected.discard(idx)
+        selected.remove(idx)
     else:
-        selected.add(idx)
+        selected.append(idx)
     await state.update_data(selected_categories=selected)
 
     current_page = data.get("cat_page", 0)
@@ -116,7 +116,7 @@ async def on_category_page(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
     page = int(callback.data.split(":")[1])
-    selected: set[int] = data.get("selected_categories", set())
+    selected: list[int] = data.get("selected_categories", [])
     await state.update_data(cat_page=page)
     await callback.message.edit_reply_markup(
         reply_markup=category_keyboard(page=page, selected=selected, lang=lang)
@@ -141,7 +141,7 @@ async def on_experience(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
     slug = callback.data.split(":")[1]
-    await state.update_data(experience_level=slug, selected_locations=set())
+    await state.update_data(experience_level=slug, selected_locations=[])
     await state.set_state(OnboardingState.locations)
     await callback.message.edit_text(
         t("ask_locations", lang),
@@ -155,12 +155,12 @@ async def on_location_select(callback: CallbackQuery, state: FSMContext) -> None
     data = await state.get_data()
     lang = data.get("language", "id")
     idx = int(callback.data.split(":")[1])
-    selected: set[int] = data.get("selected_locations", set())
+    selected: list[int] = data.get("selected_locations", [])
 
     if idx in selected:
-        selected.discard(idx)
+        selected.remove(idx)
     else:
-        selected.add(idx)
+        selected.append(idx)
     await state.update_data(selected_locations=selected)
 
     current_page = data.get("loc_page", 0)
@@ -175,7 +175,7 @@ async def on_location_page(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
     page = int(callback.data.split(":")[1])
-    selected: set[int] = data.get("selected_locations", set())
+    selected: list[int] = data.get("selected_locations", [])
     await state.update_data(loc_page=page)
     await callback.message.edit_reply_markup(
         reply_markup=location_keyboard(page=page, selected=selected, lang=lang)
@@ -187,7 +187,7 @@ async def on_location_page(callback: CallbackQuery, state: FSMContext) -> None:
 async def on_location_done(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
-    await state.update_data(selected_arrangements=set())
+    await state.update_data(selected_arrangements=[])
     await state.set_state(OnboardingState.work_arrangement)
     await callback.message.edit_text(
         t("ask_work_arrangement", lang),
@@ -201,12 +201,12 @@ async def on_arrangement_select(callback: CallbackQuery, state: FSMContext) -> N
     data = await state.get_data()
     lang = data.get("language", "id")
     name = callback.data.split(":")[1]
-    selected: set[str] = data.get("selected_arrangements", set())
+    selected: list[str] = data.get("selected_arrangements", [])
 
     if name in selected:
-        selected.discard(name)
+        selected.remove(name)
     else:
-        selected.add(name)
+        selected.append(name)
     await state.update_data(selected_arrangements=selected)
     await callback.message.edit_reply_markup(
         reply_markup=work_arrangement_keyboard(selected=selected, lang=lang)
@@ -269,11 +269,11 @@ async def _show_confirmation(
     message: Message, state: FSMContext, data: dict, lang: str
 ) -> None:
     data = await state.get_data()
-    selected_cats = data.get("selected_categories", set())
+    selected_cats = data.get("selected_categories", [])
     cat_names = [
         CATEGORIES[i]["name_id" if lang == "id" else "name_en"] for i in selected_cats
     ]
-    selected_locs = data.get("selected_locations", set())
+    selected_locs = data.get("selected_locations", [])
     loc_names = [LOCATIONS[i]["city"] for i in selected_locs]
 
     exp_slug = data.get("experience_level", "")
@@ -291,7 +291,7 @@ async def _show_confirmation(
         level=exp_label,
         categories=", ".join(cat_names) if cat_names else "-",
         locations=", ".join(loc_names) if loc_names else "-",
-        arrangements=", ".join(data.get("selected_arrangements", set())),
+        arrangements=", ".join(data.get("selected_arrangements", [])),
         credits="3",
     )
 
@@ -319,9 +319,9 @@ async def on_confirm(callback: CallbackQuery, state: FSMContext, session: AsyncS
         user=user,
         experience_level=data["experience_level"],
         salary_slug=data.get("salary_slug"),
-        category_indices=list(data.get("selected_categories", set())),
-        location_indices=list(data.get("selected_locations", set())),
-        arrangement_names=list(data.get("selected_arrangements", set())),
+        category_indices=data.get("selected_categories", []),
+        location_indices=data.get("selected_locations", []),
+        arrangement_names=data.get("selected_arrangements", []),
     )
 
     from jobly.models.cv import CV
