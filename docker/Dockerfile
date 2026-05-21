@@ -17,7 +17,14 @@ RUN uv sync --frozen --no-dev
 
 COPY src/ src/
 COPY alembic.ini ./
+COPY docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["python", "-m", "jobly.main"]
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+ENTRYPOINT ["./entrypoint.sh"]
