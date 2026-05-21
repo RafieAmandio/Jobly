@@ -1,11 +1,18 @@
 import json
 import logging
+import re
 
 from openai import AsyncOpenAI
 
 from jobly.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences from AI response before JSON parsing."""
+    m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    return m.group(1).strip() if m else text.strip()
 
 _client: AsyncOpenAI | None = None
 
@@ -62,7 +69,7 @@ async def tailor_cv_content(
             temperature=1,
         )
         content = response.choices[0].message.content
-        return json.loads(content)
+        return json.loads(_extract_json(content))
     except Exception:
         logger.exception("Failed to tailor CV via AI")
         return None
@@ -141,7 +148,7 @@ async def classify_job(title: str, description: str) -> list[dict]:
             temperature=1,
         )
         content = response.choices[0].message.content
-        data = json.loads(content)
+        data = json.loads(_extract_json(content))
         if isinstance(data, dict) and "categories" in data:
             return data["categories"]
         if isinstance(data, list):
