@@ -84,9 +84,26 @@ def create_dispatcher() -> Dispatcher:
 
 
 async def on_startup(bot: Bot) -> None:
+    from aiogram.types import BotCommand
+
     from jobly.db.seed import seed_reference_data
 
     await seed_reference_data()
+
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Mulai / Start"),
+        BotCommand(command="profile", description="Lihat profil / View profile"),
+        BotCommand(command="edit_preferences", description="Ubah preferensi / Edit preferences"),
+        BotCommand(command="browse", description="Cari lowongan / Browse jobs"),
+        BotCommand(command="upload_cv", description="Upload CV"),
+        BotCommand(command="view_cv", description="Lihat CV / View CV"),
+        BotCommand(command="credits", description="Cek saldo kredit / Check credits"),
+        BotCommand(command="topup", description="Beli kredit / Buy credits"),
+        BotCommand(command="transactions", description="Riwayat transaksi / Transaction history"),
+        BotCommand(command="referral", description="Kode referral / Referral code"),
+        BotCommand(command="language", description="Ganti bahasa / Change language"),
+        BotCommand(command="help", description="Bantuan / Help"),
+    ])
 
     _setup_scheduler(bot)
 
