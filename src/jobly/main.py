@@ -90,6 +90,10 @@ async def on_startup(bot: Bot) -> None:
 
     await seed_reference_data()
 
+    from jobly.scrapers.providers import register_providers
+
+    register_providers()
+
     await bot.set_my_commands([
         BotCommand(command="start", description="Mulai / Start"),
         BotCommand(command="profile", description="Lihat profil / View profile"),
