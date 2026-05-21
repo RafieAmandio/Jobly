@@ -27,8 +27,8 @@ class TelegramSettings(BaseSettings):
 
 class MoonshotSettings(BaseSettings):
     api_key: str = ""
-    base_url: str = "https://api.moonshot.cn/v1"
-    model: str = "kimi-2.6"
+    base_url: str = "https://api.moonshot.ai/v1"
+    model: str = "kimi-k2.6"
 
     model_config = SettingsConfigDict(env_prefix="MOONSHOT_")
 
