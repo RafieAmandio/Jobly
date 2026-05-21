@@ -78,4 +78,4 @@ async def test_tailor_no_cv(seeded_session, test_user, test_job):
 
     cb.message.answer.assert_called()
     call_text = cb.message.answer.call_args[0][0]
-    assert "upload" in call_text.lower() or "cv" in call_text.lower()
+    assert "upload" in call_text.lower() or "no cv" in call_text.lower() or "belum upload" in call_text.lower()

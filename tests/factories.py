@@ -47,6 +47,10 @@ class MemoryFSMContext:
         self._data = {}
 
 
+def _make_from_user(user_id: int, username: str) -> SimpleNamespace:
+    return SimpleNamespace(id=user_id, username=username, first_name="Test", last_name="User")
+
+
 def make_message(
     text: str = "",
     user_id: int = 123456789,
@@ -57,9 +61,7 @@ def make_message(
     bot = bot or MockBot()
     msg = AsyncMock()
     msg.text = text
-    msg.from_user = SimpleNamespace(
-        id=user_id, username=username, first_name="Test", last_name="User"
-    )
+    msg.from_user = _make_from_user(user_id, username)
     msg.chat = SimpleNamespace(id=chat_id, type="private")
     msg.bot = bot
     msg.document = None
@@ -76,8 +78,6 @@ def make_callback(
     bot = bot or MockBot()
     cb = AsyncMock()
     cb.data = data
-    cb.from_user = SimpleNamespace(
-        id=user_id, username=username, first_name="Test", last_name="User"
-    )
+    cb.from_user = _make_from_user(user_id, username)
     cb.message = message or make_message(bot=bot)
     return cb
