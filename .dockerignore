@@ -9,7 +9,8 @@ __pycache__/
 .ruff_cache/
 tests/
 docs/
-*.md
+CLAUDE.md
+AGENTS.md
 .DS_Store
 output/
 temp/
