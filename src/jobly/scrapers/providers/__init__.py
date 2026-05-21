@@ -7,5 +7,5 @@ def register_providers() -> None:
     if not settings.apify.api_token:
         return
 
-    for source in ("linkedin", "indeed", "glassdoor", "jobstreet"):
+    for source in ("linkedin", "indeed"):
         registry.register(ApifyProvider(source))

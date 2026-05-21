@@ -9,10 +9,8 @@ from jobly.scrapers.base import JobFilters, JobResult
 logger = logging.getLogger(__name__)
 
 ACTOR_MAP = {
-    "linkedin": "apify/linkedin-jobs-scraper",
+    "linkedin": "curious_coder/linkedin-jobs-scraper",
     "indeed": "misceres/indeed-scraper",
-    "glassdoor": "easyapi/glassdoor-jobs",
-    "jobstreet": "jeancarlomass/jobstreet-scraper",
 }
 
 
@@ -41,49 +39,36 @@ class ApifyProvider:
             async for item in dataset.iterate_items():
                 items.append(item)
 
-            return [self._parse_item(item) for item in items if self._parse_item(item)]
+            results = [self._parse_item(item) for item in items]
+            return [r for r in results if r is not None]
         except Exception:
             logger.exception(f"Apify {self.name}: failed to run actor {self.actor_id}")
             return []
 
     def _build_input(self, filters: JobFilters) -> dict | None:
         if self.name == "linkedin":
+            query = "+".join(filters.keywords) if filters.keywords else "software+engineer"
+            location = filters.location or "Indonesia"
+            url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={location}"
             return {
-                "searchUrl": self._linkedin_search_url(filters),
-                "maxItems": filters.max_results,
-                "proxy": {"useApifyProxy": True},
+                "urls": [url],
+                "count": filters.max_results,
+                "scrapeCompany": False,
             }
         elif self.name == "indeed":
-            query = " ".join(filters.keywords) if filters.keywords else "jobs"
+            position = " ".join(filters.keywords) if filters.keywords else ""
             return {
-                "query": query,
+                "position": position,
+                "country": "ID",
                 "location": filters.location or "Indonesia",
                 "maxItems": filters.max_results,
-            }
-        elif self.name == "glassdoor":
-            query = " ".join(filters.keywords) if filters.keywords else "jobs"
-            return {
-                "keyword": query,
-                "location": filters.location or "Indonesia",
-                "maxItems": filters.max_results,
-            }
-        elif self.name == "jobstreet":
-            query = " ".join(filters.keywords) if filters.keywords else "jobs"
-            return {
-                "keyword": query,
-                "location": filters.location or "Indonesia",
-                "maxResults": filters.max_results,
+                "saveOnlyUniqueItems": True,
             }
         return None
 
-    def _linkedin_search_url(self, filters: JobFilters) -> str:
-        query = "+".join(filters.keywords) if filters.keywords else "jobs"
-        location = filters.location or "Indonesia"
-        return f"https://www.linkedin.com/jobs/search/?keywords={query}&location={location}"
-
     def _parse_item(self, item: dict) -> JobResult | None:
         try:
-            title = item.get("title") or item.get("jobTitle") or item.get("name", "")
+            title = item.get("title") or item.get("jobTitle") or item.get("positionName") or item.get("name", "")
             if not title:
                 return None
 
@@ -94,7 +79,7 @@ class ApifyProvider:
                 or item.get("applyUrl", "")
             )
 
-            posted_str = item.get("postedAt") or item.get("date") or item.get("postedDate")
+            posted_str = item.get("postedAt") or item.get("date") or item.get("postedDate") or item.get("postedTime")
             posted_at = None
             if posted_str:
                 try:
