@@ -130,7 +130,7 @@ async def start_polling() -> None:
     await dp.start_polling(bot)
 
 
-async def start_webhook() -> None:
+def start_webhook() -> None:
     from aiohttp import web
     from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -166,7 +166,7 @@ async def start_webhook() -> None:
 
 def main() -> None:
     if settings.is_production:
-        asyncio.run(start_webhook())
+        start_webhook()
     else:
         asyncio.run(start_polling())
 
