@@ -29,6 +29,14 @@ async def tailor_cv(
     if not tailored_data:
         return None
 
+    # Fall back to the user record for any contact field the AI didn't extract.
+    contact = dict(tailored_data.get("contact") or {})
+    if not contact.get("email") and user.email:
+        contact["email"] = user.email
+    if not contact.get("phone") and user.phone:
+        contact["phone"] = user.phone
+    tailored_data["contact"] = contact
+
     docx_bytes = generate_cv_docx(tailored_data, user.full_name)
     pdf_bytes = generate_cv_pdf(tailored_data, user.full_name)
 

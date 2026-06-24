@@ -50,11 +50,20 @@ async def tailor_cv_content(
                         "4. Reorder skills to prioritize those mentioned in the JD\n"
                         "5. Rephrase bullet points using action verbs and quantified achievements\n"
                         "6. Keep all factual information (dates, companies, degrees) unchanged\n"
-                        f"7. Output in {lang_name}\n\n"
+                        "7. Extract the candidate's contact details (location, email, phone, "
+                        "LinkedIn URL) from the CV into the 'contact' object. Omit any field "
+                        "not present in the CV; never invent contact details.\n"
+                        "8. If the CV lists certifications, awards/achievements, or notable "
+                        "projects, include the most relevant ones (each as a short one-line "
+                        "string). Omit a section entirely if the CV has none.\n"
+                        f"9. Output in {lang_name}\n\n"
                         "Output valid JSON with this structure:\n"
-                        '{"summary": "...", "experience": [{"company": "...", "title": "...", '
-                        '"period": "...", "bullets": ["..."]}], "skills": ["..."], '
-                        '"education": [{"institution": "...", "degree": "...", "year": "..."}]}'
+                        '{"contact": {"location": "...", "email": "...", "phone": "...", "linkedin": "..."}, '
+                        '"summary": "...", "experience": [{"company": "...", "title": "...", '
+                        '"period": "...", "bullets": ["..."]}], '
+                        '"education": [{"institution": "...", "degree": "...", "year": "..."}], '
+                        '"certifications": ["..."], "awards": ["..."], "projects": ["..."], '
+                        '"skills": ["..."]}'
                     ),
                 },
                 {

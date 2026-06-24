@@ -29,8 +29,9 @@ async def generate_cover_letter(
     if not content:
         return None
 
-    docx_bytes = generate_cover_letter_docx(content, user.full_name)
-    pdf_bytes = generate_cover_letter_pdf(content, user.full_name)
+    contact = {"email": user.email, "phone": user.phone}
+    docx_bytes = generate_cover_letter_docx(content, user.full_name, contact)
+    pdf_bytes = generate_cover_letter_pdf(content, user.full_name, contact)
 
     history = TailoringHistory(
         user_id=user.id,
