@@ -33,8 +33,28 @@ def job_card_keyboard(job_id: str, job_url: str, lang: str = "id") -> InlineKeyb
 
 def topup_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⭐ Starter — 5 kredit — Rp 25.000", callback_data="topup:starter")],
-        [InlineKeyboardButton(text="🔥 Popular — 15 kredit — Rp 60.000", callback_data="topup:popular")],
-        [InlineKeyboardButton(text="💎 Pro — 50 kredit — Rp 150.000", callback_data="topup:pro")],
-        [InlineKeyboardButton(text="👑 Bulk — 100 kredit — Rp 250.000", callback_data="topup:bulk")],
+        [
+            InlineKeyboardButton(
+                text="⭐ Pemula — 5 kredit — Rp 25.000",
+                callback_data="topup:starter",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔥 Popular — 15 kredit — Rp 60.000",
+                callback_data="topup:popular",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="💎 Pro — 50 kredit — Rp 150.000",
+                callback_data="topup:pro",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="👑 Bulk — 100 kredit — Rp 250.000",
+                callback_data="topup:bulk",
+            )
+        ],
     ])

@@ -78,8 +78,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "✅ Your cover letter is ready! Files sent above.",
     },
     "topup_menu": {
-        "id": "💳 Pilih paket kredit:\n\n⭐ Starter — 5 kredit — Rp 25.000\n🔥 Popular — 15 kredit — Rp 60.000\n💎 Pro — 50 kredit — Rp 150.000\n👑 Bulk — 100 kredit — Rp 250.000",
-        "en": "💳 Choose a credit package:\n\n⭐ Starter — 5 credits — Rp 25,000\n🔥 Popular — 15 credits — Rp 60,000\n💎 Pro — 50 credits — Rp 150,000\n👑 Bulk — 100 credits — Rp 250,000",
+        "id": "💳 Pilih paket kredit:\n\n⭐ Pemula — 5 kredit — Rp 25.000\n🔥 Popular — 15 kredit — Rp 60.000\n💎 Pro — 50 kredit — Rp 150.000\n👑 Bulk — 100 kredit — Rp 250.000",
+        "en": "💳 Choose a credit package:\n\n⭐ Pemula — 5 credits — Rp 25,000\n🔥 Popular — 15 credits — Rp 60,000\n💎 Pro — 50 credits — Rp 150,000\n👑 Bulk — 100 credits — Rp 250,000",
     },
     "payment_created": {
         "id": "🔗 Klik link di bawah untuk membayar:\n{url}\n\nKredit akan otomatis ditambahkan setelah pembayaran berhasil.",
