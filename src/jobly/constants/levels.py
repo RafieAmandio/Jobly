@@ -36,7 +36,7 @@ WORK_ARRANGEMENTS = [
 ]
 
 CREDIT_PACKAGES = [
-    {"name": "starter", "credits": 5, "price_idr": 25_000, "label": "Starter"},
+    {"name": "starter", "credits": 5, "price_idr": 25_000, "label": "Pemula"},
     {"name": "popular", "credits": 15, "price_idr": 60_000, "label": "Popular"},
     {"name": "pro", "credits": 50, "price_idr": 150_000, "label": "Pro"},
     {"name": "bulk", "credits": 100, "price_idr": 250_000, "label": "Bulk"},
