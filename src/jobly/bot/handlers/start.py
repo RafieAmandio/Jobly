@@ -18,7 +18,8 @@ from jobly.constants.categories import CATEGORIES
 from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
-from jobly.models.user import User
+from jobly.services.cv_input import prepare_cv_text
+from jobly.services.cv_parser import SUPPORTED_CV_MIME_TYPES, extract_text_from_upload
 from jobly.services.user import create_user, get_user_by_telegram_id, save_preferences
 
 router = Router()
@@ -243,25 +244,30 @@ async def on_cv_pdf(message: Message, state: FSMContext, session: AsyncSession) 
     lang = data.get("language", "id")
 
     doc = message.document
-    if doc.mime_type != "application/pdf":
-        await message.answer("Please upload a PDF file." if lang == "en" else "Mohon upload file PDF.")
+    if doc.mime_type not in SUPPORTED_CV_MIME_TYPES:
+        await message.answer(t("invalid_cv_upload", lang))
         return
 
     file = await message.bot.download(doc)
-    pdf_bytes = file.read()
-
-    from jobly.services.cv_parser import extract_text_from_pdf
-
-    cv_text = extract_text_from_pdf(pdf_bytes)
+    file_bytes = file.read()
+    cv_text = extract_text_from_upload(file_bytes, doc.mime_type)
     await state.update_data(cv_text=cv_text)
     await _show_confirmation(message, state, data, lang)
+
+
+@router.message(OnboardingState.cv_upload, F.photo)
+async def on_cv_photo(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("language", "id")
+    await message.answer(t("invalid_cv_upload", lang))
 
 
 @router.message(OnboardingState.cv_upload, F.text)
 async def on_cv_text(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
-    await state.update_data(cv_text=message.text.strip())
+    cv_text = await prepare_cv_text(message.text.strip())
+    await state.update_data(cv_text=cv_text)
     await _show_confirmation(message, state, data, lang)
 
 
