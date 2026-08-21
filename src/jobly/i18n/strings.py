@@ -97,6 +97,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "id": "✅ CV berhasil diupload dan diproses!",
         "en": "✅ CV uploaded and processed successfully!",
     },
+    "linkedin_import_limit": {
+        "id": "Kamu sudah mencapai batas import LinkedIn hari ini ({limit})",
+        "en": "You've reached today's LinkedIn import limit ({limit})",
+    },
     "help": {
         "id": (
             "📖 Perintah yang tersedia:\n\n"
