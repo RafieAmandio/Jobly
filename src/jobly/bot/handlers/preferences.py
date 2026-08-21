@@ -14,7 +14,6 @@ from jobly.bot.keyboards.onboarding import (
     work_arrangement_keyboard,
 )
 from jobly.constants.categories import CATEGORIES
-from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
 from jobly.models.reference import Category, Location, WorkArrangement
@@ -30,6 +29,7 @@ class EditPrefState(StatesGroup):
     locations = State()
     arrangements = State()
     salary = State()
+    phone = State()
 
 
 PREF_OPTIONS = {
@@ -39,6 +39,7 @@ PREF_OPTIONS = {
         ("edit_loc", "📍 Lokasi"),
         ("edit_arr", "💼 Jenis Kerja"),
         ("edit_sal", "💰 Rentang Gaji"),
+        ("edit_phone", "📱 Nomor Telepon"),
     ],
     "en": [
         ("edit_cat", "📂 Job Categories"),
@@ -46,6 +47,7 @@ PREF_OPTIONS = {
         ("edit_loc", "📍 Locations"),
         ("edit_arr", "💼 Work Arrangements"),
         ("edit_sal", "💰 Salary Range"),
+        ("edit_phone", "📱 Phone Number"),
     ],
 }
 
@@ -202,7 +204,10 @@ async def on_edit_loc_done(
     selected_indices: set[int] = data.get("selected_locations", set())
 
     await session.execute(delete(UserLocation).where(UserLocation.user_id == db_user.id))
-    locs = {l.city: l.id for l in (await session.execute(select(Location))).scalars().all()}
+    locs = {
+        location.city: location.id
+        for location in (await session.execute(select(Location))).scalars().all()
+    }
     for idx in selected_indices:
         city = LOCATIONS[idx]["city"]
         if city in locs:
@@ -302,6 +307,41 @@ async def on_edit_sal_select(
         reply_markup=edit_menu_keyboard(lang),
     )
     await callback.answer()
+
+
+@router.callback_query(EditPrefState.choosing, F.data == "edit_phone")
+async def on_edit_phone(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
+    await state.set_state(EditPrefState.phone)
+    await callback.message.edit_text(t("edit_phone_prompt", lang))
+    await callback.answer()
+
+
+@router.message(EditPrefState.phone, Command("skip"))
+async def on_edit_phone_skip(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User, lang: str
+) -> None:
+    db_user.phone = None
+    await session.flush()
+    await state.set_state(EditPrefState.choosing)
+    await message.answer(t("phone_removed", lang))
+    await message.answer(
+        "Apa lagi?" if lang == "id" else "Anything else?",
+        reply_markup=edit_menu_keyboard(lang),
+    )
+
+
+@router.message(EditPrefState.phone)
+async def on_edit_phone_submit(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User, lang: str
+) -> None:
+    db_user.phone = message.text.strip() if message.text else None
+    await session.flush()
+    await state.set_state(EditPrefState.choosing)
+    await message.answer(t("phone_updated", lang))
+    await message.answer(
+        "Apa lagi?" if lang == "id" else "Anything else?",
+        reply_markup=edit_menu_keyboard(lang),
+    )
 
 
 @router.callback_query(EditPrefState.choosing, F.data == "edit_done")
