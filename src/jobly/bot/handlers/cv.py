@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jobly.i18n.strings import t
 from jobly.models.cv import CV
 from jobly.models.user import User
+from jobly.services.cv_parser import extract_text_from_docx, extract_text_from_pdf
 
 router = Router()
 
@@ -25,23 +26,27 @@ async def on_cv_upload(message: Message, session: AsyncSession, db_user: User | 
         return
 
     doc = message.document
-    if doc.mime_type != "application/pdf":
-        await message.answer("Please upload a PDF file." if lang == "en" else "Mohon upload file PDF.")
+    if doc.mime_type == "application/pdf":
+        file_bytes = (await message.bot.download(doc)).read()
+        cv_text = extract_text_from_pdf(file_bytes)
+    elif doc.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        file_bytes = (await message.bot.download(doc)).read()
+        cv_text = extract_text_from_docx(file_bytes)
+    else:
+        await message.answer(
+            "Please upload a PDF or DOCX file."
+            if lang == "en"
+            else "Mohon upload file PDF atau DOCX."
+        )
         return
 
-    file = await message.bot.download(doc)
-    pdf_bytes = file.read()
-
-    from jobly.services.cv_parser import extract_text_from_pdf
-
-    cv_text = extract_text_from_pdf(pdf_bytes)
 
     await session.execute(
-        select(CV).where(CV.user_id == db_user.id, CV.is_current == True)
+        select(CV).where(CV.user_id == db_user.id, CV.is_current)
     )
     existing = (
         await session.execute(
-            select(CV).where(CV.user_id == db_user.id, CV.is_current == True)
+            select(CV).where(CV.user_id == db_user.id, CV.is_current)
         )
     ).scalar_one_or_none()
     if existing:
@@ -61,7 +66,7 @@ async def cmd_view_cv(message: Message, session: AsyncSession, db_user: User | N
 
     cv = (
         await session.execute(
-            select(CV).where(CV.user_id == db_user.id, CV.is_current == True)
+            select(CV).where(CV.user_id == db_user.id, CV.is_current)
         )
     ).scalar_one_or_none()
 

@@ -18,7 +18,7 @@ from jobly.constants.categories import CATEGORIES
 from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
-from jobly.models.user import User
+from jobly.services.cv_parser import extract_text_from_docx, extract_text_from_pdf
 from jobly.services.user import create_user, get_user_by_telegram_id, save_preferences
 
 router = Router()
@@ -243,16 +243,20 @@ async def on_cv_pdf(message: Message, state: FSMContext, session: AsyncSession) 
     lang = data.get("language", "id")
 
     doc = message.document
-    if doc.mime_type != "application/pdf":
-        await message.answer("Please upload a PDF file." if lang == "en" else "Mohon upload file PDF.")
+    if doc.mime_type == "application/pdf":
+        file_bytes = (await message.bot.download(doc)).read()
+        cv_text = extract_text_from_pdf(file_bytes)
+    elif doc.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        file_bytes = (await message.bot.download(doc)).read()
+        cv_text = extract_text_from_docx(file_bytes)
+    else:
+        await message.answer(
+            "Please upload a PDF or DOCX file."
+            if lang == "en"
+            else "Mohon upload file PDF atau DOCX."
+        )
         return
 
-    file = await message.bot.download(doc)
-    pdf_bytes = file.read()
-
-    from jobly.services.cv_parser import extract_text_from_pdf
-
-    cv_text = extract_text_from_pdf(pdf_bytes)
     await state.update_data(cv_text=cv_text)
     await _show_confirmation(message, state, data, lang)
 

@@ -38,8 +38,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Select your expected salary range:",
     },
     "ask_cv": {
-        "id": "Upload CV kamu dalam format PDF, atau ketik/paste teks CV kamu langsung.",
-        "en": "Upload your CV as a PDF file, or type/paste your CV text directly.",
+        "id": "Upload CV kamu dalam format PDF atau DOCX, atau ketik/paste teks CV kamu langsung.",
+        "en": "Upload your CV as a PDF or DOCX file, or type/paste your CV text directly.",
     },
     "ask_language": {
         "id": "Pilih bahasa untuk bot ini:",
