@@ -18,7 +18,7 @@ from jobly.constants.categories import CATEGORIES
 from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
-from jobly.models.user import User
+from jobly.services.cv_input import prepare_cv_text
 from jobly.services.user import create_user, get_user_by_telegram_id, save_preferences
 
 router = Router()
@@ -261,7 +261,8 @@ async def on_cv_pdf(message: Message, state: FSMContext, session: AsyncSession) 
 async def on_cv_text(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
-    await state.update_data(cv_text=message.text.strip())
+    cv_text = await prepare_cv_text(message.text.strip())
+    await state.update_data(cv_text=cv_text)
     await _show_confirmation(message, state, data, lang)
 
 

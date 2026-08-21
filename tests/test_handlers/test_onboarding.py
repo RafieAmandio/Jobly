@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from sqlalchemy import select
 
@@ -132,6 +134,36 @@ async def test_full_onboarding_flow(seeded_session):
         await seeded_session.execute(select(CV).where(CV.user_id == user.id))
     ).scalar_one()
     assert cv_text in cv.raw_text
+
+
+@pytest.mark.asyncio
+@patch("jobly.bot.handlers.start.prepare_cv_text", new_callable=AsyncMock)
+async def test_on_cv_text_enriches_linkedin_input(mock_prepare_cv_text):
+    mock_prepare_cv_text.return_value = "LinkedIn profile source\nProfile title: John Doe"
+    bot = MockBot()
+    state = MemoryFSMContext()
+    await state.set_state(OnboardingState.cv_upload)
+    await state.set_data(
+        {
+            "language": "en",
+            "selected_categories": [],
+            "selected_locations": [],
+            "selected_arrangements": [],
+            "experience_level": "mid",
+            "full_name": "John Doe",
+            "email": "john@example.com",
+        }
+    )
+
+    msg = make_message(
+        text="https://www.linkedin.com/in/johndoe", user_id=999888777, bot=bot
+    )
+    await on_cv_text(msg, state)
+
+    mock_prepare_cv_text.assert_awaited_once_with("https://www.linkedin.com/in/johndoe")
+    data = await state.get_data()
+    assert data["cv_text"] == "LinkedIn profile source\nProfile title: John Doe"
+    assert await state.get_state() == OnboardingState.confirm.state
 
 
 @pytest.mark.asyncio
