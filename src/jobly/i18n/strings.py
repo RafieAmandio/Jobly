@@ -13,6 +13,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "id": "Masukkan alamat email kamu (untuk notifikasi & pemulihan akun):",
         "en": "Enter your email address (for notifications & account recovery):",
     },
+    "invalid_email": {
+        "id": "Masukkan alamat email yang valid.",
+        "en": "Please enter a valid email address.",
+    },
     "ask_phone": {
         "id": "Masukkan nomor telepon kamu (opsional, ketik /skip untuk lewati):",
         "en": "Enter your phone number (optional, type /skip to skip):",

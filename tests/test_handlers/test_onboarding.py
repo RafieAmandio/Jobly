@@ -135,6 +135,40 @@ async def test_full_onboarding_flow(seeded_session):
 
 
 @pytest.mark.asyncio
+async def test_on_email_rejects_command_like_input():
+    bot = MockBot()
+    state = MemoryFSMContext()
+    await state.set_state(OnboardingState.email)
+    await state.set_data({"language": "en"})
+
+    msg = make_message(text="/profile", user_id=999888777, bot=bot)
+    await on_email(msg, state)
+
+    assert await state.get_state() == OnboardingState.email.state
+    data = await state.get_data()
+    assert data.get("email") is None
+    msg.answer.assert_called_once()
+    assert "valid email" in msg.answer.call_args[0][0].lower()
+
+
+@pytest.mark.asyncio
+async def test_on_email_accepts_valid_email():
+    bot = MockBot()
+    state = MemoryFSMContext()
+    await state.set_state(OnboardingState.email)
+    await state.set_data({"language": "en"})
+
+    msg = make_message(text="john@example.com", user_id=999888777, bot=bot)
+    await on_email(msg, state)
+
+    assert await state.get_state() == OnboardingState.phone.state
+    data = await state.get_data()
+    assert data["email"] == "john@example.com"
+    msg.answer.assert_called_once()
+    assert "phone" in msg.answer.call_args[0][0].lower()
+
+
+@pytest.mark.asyncio
 async def test_start_already_registered(seeded_session, test_user):
     bot = MockBot()
     state = MemoryFSMContext()
