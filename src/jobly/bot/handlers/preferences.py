@@ -14,7 +14,6 @@ from jobly.bot.keyboards.onboarding import (
     work_arrangement_keyboard,
 )
 from jobly.constants.categories import CATEGORIES
-from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
 from jobly.models.reference import Category, Location, WorkArrangement
@@ -159,11 +158,31 @@ async def on_edit_exp_select(
 
 
 @router.callback_query(EditPrefState.choosing, F.data == "edit_loc")
-async def on_edit_locations(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
-    await state.update_data(selected_locations=set())
+async def on_edit_locations(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    db_user: User,
+    lang: str,
+) -> None:
+    selected_location_ids = (
+        await session.execute(select(UserLocation.location_id).where(UserLocation.user_id == db_user.id))
+    ).scalars().all()
+    selected_locations = set()
+    if selected_location_ids:
+        locations = (
+            await session.execute(select(Location).where(Location.id.in_(selected_location_ids)))
+        ).scalars().all()
+        index_by_city = {loc["city"]: idx for idx, loc in enumerate(LOCATIONS)}
+        selected_locations = {
+            index_by_city[location.city] for location in locations if location.city in index_by_city
+        }
+
+    await state.update_data(selected_locations=selected_locations, loc_page=0)
     await state.set_state(EditPrefState.locations)
     await callback.message.edit_text(
-        t("ask_locations", lang), reply_markup=location_keyboard(page=0, lang=lang)
+        t("ask_locations", lang),
+        reply_markup=location_keyboard(page=0, selected=selected_locations, lang=lang),
     )
     await callback.answer()
 
@@ -202,7 +221,10 @@ async def on_edit_loc_done(
     selected_indices: set[int] = data.get("selected_locations", set())
 
     await session.execute(delete(UserLocation).where(UserLocation.user_id == db_user.id))
-    locs = {l.city: l.id for l in (await session.execute(select(Location))).scalars().all()}
+    locs = {
+        location.city: location.id
+        for location in (await session.execute(select(Location))).scalars().all()
+    }
     for idx in selected_indices:
         city = LOCATIONS[idx]["city"]
         if city in locs:
