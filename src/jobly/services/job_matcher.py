@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from jobly.models.job import Job, JobCategory
 from jobly.models.notification import NotificationLog
-from jobly.models.reference import Category, Location
+from jobly.models.reference import Location
 from jobly.models.user import User, UserCategory, UserLocation
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 async def find_matching_users(session: AsyncSession, job: Job) -> list[User]:
     job_cat_ids = [jc.category_id for jc in job.categories]
+    if not job_cat_ids:
+        job_cat_ids = (
+            await session.execute(
+                select(JobCategory.category_id).where(JobCategory.job_id == job.id)
+            )
+        ).scalars().all()
     if not job_cat_ids:
         return []
 
@@ -40,8 +46,8 @@ async def find_matching_users(session: AsyncSession, job: Job) -> list[User]:
 
     users_q = select(User).where(
         User.id.in_(user_ids_to_notify),
-        User.is_active == True,
-        User.onboarding_completed == True,
+        User.is_active,
+        User.onboarding_completed,
     )
     users = (await session.execute(users_q)).scalars().all()
     return list(users)
