@@ -113,6 +113,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "id": "✅ CV berhasil diupload dan diproses!",
         "en": "✅ CV uploaded and processed successfully!",
     },
+    "cv_removed": {
+        "id": "✅ CV saat ini berhasil dihapus.",
+        "en": "✅ Your current CV has been removed.",
+    },
     "help": {
         "id": (
             "📖 Perintah yang tersedia:\n\n"
