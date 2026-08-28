@@ -10,6 +10,17 @@ from jobly.models.user import User
 
 logger = logging.getLogger(__name__)
 
+SOURCE_LABELS = {
+    "linkedin": "LinkedIn",
+    "indeed": "Indeed",
+}
+
+
+def _format_source_label(source: str | None) -> str:
+    if not source:
+        return "External"
+    return SOURCE_LABELS.get(source.lower(), "External")
+
 
 def format_job_card(job: Job, lang: str = "id") -> str:
     salary = ""
@@ -23,7 +34,7 @@ def format_job_card(job: Job, lang: str = "id") -> str:
         arrangement = f" ({job.work_arrangement})"
 
     location = job.location or ("Tidak disebutkan" if lang == "id" else "Not specified")
-    source = job.source.capitalize()
+    source = _format_source_label(job.source)
 
     return (
         f"🏢 {job.title} — {job.company or 'Unknown'}\n"
