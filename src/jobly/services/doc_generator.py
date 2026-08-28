@@ -1,23 +1,42 @@
 import io
 import logging
+import re
 from html import escape
 from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
-from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
-# Palette/format mirrors the owner's master CV (serif body, centred header,
-# uppercase navy section titles with rules, company-left / dates-right rows).
+# Layout mirrors the owner's master CV exactly: centred serif header with a rule
+# under the contact line, an un-headed justified summary, then navy uppercase
+# section titles each preceded by a horizontal rule. Education puts the period on
+# its own line; work/volunteer entries right-align the period beside the org.
 NAVY = RGBColor(0x1F, 0x4E, 0x79)
-LINK_BLUE = RGBColor(0x05, 0x63, 0xC1)
-RIGHT_TAB_INCHES = 7.0
+RULE_COLOR = "999999"
+BULLET = "●"  # ●
+RIGHT_TAB_INCHES = 7.15
+
+# Order matters — this is the master CV's section order.
+def _volunteer_key(data: dict) -> str:
+    """PR #12 renamed this section's key; read whichever the AI produced."""
+    return "leadership" if data.get("leadership") else "volunteer"
+
+
+LIST_SECTIONS = (
+    ("extra_miles", "Extra Miles"),
+    ("certifications", "Certifications"),
+    ("awards", "Awards"),
+    ("projects", "Stem Projects"),
+)
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
 
 def _contact_line(contact: dict | None) -> list[str]:
@@ -32,44 +51,120 @@ def _contact_line(contact: dict | None) -> list[str]:
     return parts
 
 
+def _split_bold(text: str) -> list[tuple[str, bool]]:
+    """Split text on **bold** markers into (chunk, is_bold) pairs."""
+    out: list[tuple[str, bool]] = []
+    pos = 0
+    for m in _BOLD_RE.finditer(text):
+        if m.start() > pos:
+            out.append((text[pos : m.start()], False))
+        out.append((m.group(1), True))
+        pos = m.end()
+    if pos < len(text):
+        out.append((text[pos:], False))
+    return out or [(text, False)]
+
+
 # --------------------------------------------------------------------------- #
 # DOCX helpers
 # --------------------------------------------------------------------------- #
-def _set_bottom_border(paragraph, size: int = 6, color: str = "BFBFBF") -> None:
+def _rule(paragraph, position: str = "top") -> None:
     p_pr = paragraph._p.get_or_add_pPr()
     borders = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), str(size))
-    bottom.set(qn("w:space"), "2")
-    bottom.set(qn("w:color"), color)
-    borders.append(bottom)
+    edge = OxmlElement(f"w:{position}")
+    edge.set(qn("w:val"), "single")
+    edge.set(qn("w:sz"), "6")
+    edge.set(qn("w:space"), "4")
+    edge.set(qn("w:color"), RULE_COLOR)
+    borders.append(edge)
     p_pr.append(borders)
 
 
-def _section_heading(doc, text: str) -> None:
+def _runs(paragraph, text: str, italic: bool = False, size: float | None = None):
+    for chunk, bold in _split_bold(text):
+        run = paragraph.add_run(chunk)
+        run.bold = bold
+        run.italic = italic
+        if size:
+            run.font.size = Pt(size)
+
+
+def _section(doc, title: str):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(10)
-    p.paragraph_format.space_after = Pt(4)
-    run = p.add_run(text.upper())
+    p.paragraph_format.space_before = Pt(9)
+    p.paragraph_format.space_after = Pt(2)
+    run = p.add_run(title.upper())
     run.bold = True
-    run.font.size = Pt(11.5)
+    run.font.size = Pt(12)
     run.font.color.rgb = NAVY
-    _set_bottom_border(p)
+    _rule(p, "top")
+    return p
 
 
-def _entry_header(doc, org: str, period: str) -> None:
+def _bullet(doc, text: str):
+    p = doc.add_paragraph()
+    pf = p.paragraph_format
+    pf.left_indent = Inches(0.50)
+    pf.first_line_indent = Inches(-0.25)
+    pf.space_after = Pt(1)
+    pf.line_spacing = 1.0
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    marker = p.add_run(f"{BULLET}  ")
+    marker.font.size = Pt(8.5)
+    _runs(p, text)
+    return p
+
+
+def _entry_head(doc, left: str, right: str):
     """Org bold on the left, period right-aligned on the same line."""
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_before = Pt(3)
     p.paragraph_format.space_after = Pt(0)
     p.paragraph_format.tab_stops.add_tab_stop(
         Inches(RIGHT_TAB_INCHES), WD_TAB_ALIGNMENT.RIGHT
     )
-    org_run = p.add_run(org)
-    org_run.bold = True
-    if period:
-        p.add_run(f"\t{period}")
+    _runs(p, left)
+    if right:
+        p.add_run(f"\t{right}")
+    return p
+
+
+def _exp_entries(data: dict, key: str) -> list[dict]:
+    items = data.get(key) or []
+    return [e for e in items if isinstance(e, dict)]
+
+
+def _org_label(exp: dict) -> str:
+    company = (exp.get("company") or "").strip()
+    location = (exp.get("location") or "").strip()
+    if company and location:
+        return f"**{company}**, {location}"
+    return f"**{company}**" if company else location
+
+
+def _edu_label(edu: dict) -> str:
+    bits = [b for b in (edu.get("degree"), edu.get("gpa")) if b]
+    inst = (edu.get("institution") or "").strip()
+    head = f"**{inst}**" if inst else ""
+    if bits:
+        joined = " | ".join(str(b).strip() for b in bits)
+        return f"{head} | {joined}" if head else joined
+    return head
+
+
+def _additional_info(data: dict) -> list[tuple[str, str]]:
+    """(label, value) rows for the ADDITIONAL INFORMATION block."""
+    info = data.get("additional_info")
+    rows: list[tuple[str, str]] = []
+    if isinstance(info, dict):
+        for label, value in info.items():
+            if not value:
+                continue
+            text = ", ".join(str(v) for v in value) if isinstance(value, list) else str(value)
+            rows.append((str(label), text))
+    if not rows and data.get("skills"):
+        rows.append(("Skills", ", ".join(str(s) for s in data["skills"])))
+    return rows
 
 
 # --------------------------------------------------------------------------- #
@@ -79,80 +174,86 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     doc = Document()
 
     for section in doc.sections:
-        section.top_margin = Inches(0.6)
-        section.bottom_margin = Inches(0.6)
-        section.left_margin = Inches(0.63)
-        section.right_margin = Inches(0.63)
+        section.top_margin = Inches(0.45)
+        section.bottom_margin = Inches(0.45)
+        section.left_margin = Inches(0.51)
+        section.right_margin = Inches(0.51)
 
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
-    style.font.size = Pt(10.5)
+    style.font.size = Pt(10)
     style.paragraph_format.space_after = Pt(0)
-    style.paragraph_format.line_spacing = 1.1
+    style.paragraph_format.line_spacing = 1.19
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(2)
+    name_p.paragraph_format.space_after = Pt(1)
     name_run = name_p.add_run(full_name)
     name_run.bold = True
-    name_run.font.size = Pt(20)
+    name_run.font.size = Pt(12)
 
     contact_parts = _contact_line(data.get("contact"))
     if contact_parts:
         contact_p = doc.add_paragraph()
         contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(2)
-        run = contact_p.add_run(" | ".join(contact_parts))
-        run.font.size = Pt(9.5)
-        _set_bottom_border(contact_p, color="000000")
+        contact_p.paragraph_format.space_after = Pt(4)
+        contact_p.add_run(" | ".join(contact_parts)).font.size = Pt(10)
+        _rule(contact_p, "bottom")
 
     if data.get("summary"):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_before = Pt(6)
-        p.add_run(data["summary"])
+        p.paragraph_format.space_before = Pt(5)
+        _runs(p, data["summary"])
 
-    if data.get("experience"):
-        _section_heading(doc, "Work Experiences")
-        for exp in data["experience"]:
-            _entry_header(doc, exp.get("company", ""), exp.get("period", ""))
+    education = _exp_entries(data, "education")
+    if education:
+        _section(doc, "Education")
+    for edu in education:
+        label = _edu_label(edu)
+        if label:
+            head = doc.add_paragraph()
+            head.paragraph_format.space_before = Pt(2)
+            head.paragraph_format.space_after = Pt(0)
+            _runs(head, label)
+        if edu.get("year"):
+            period = doc.add_paragraph()
+            period.paragraph_format.space_after = Pt(1)
+            period.add_run(str(edu["year"]))
+        for bullet in edu.get("bullets") or []:
+            _bullet(doc, bullet)
+
+    for key, heading in (("experience", "Work Experiences"), (_volunteer_key(data), "Volunteer & Leadership Experiences")):
+        entries = _exp_entries(data, key)
+        if not entries:
+            continue
+        _section(doc, heading)
+        for exp in entries:
+            _entry_head(doc, _org_label(exp), str(exp.get("period") or ""))
             if exp.get("title"):
-                role_p = doc.add_paragraph()
-                role_p.paragraph_format.space_after = Pt(2)
-                role_run = role_p.add_run(exp["title"])
-                role_run.italic = True
-            for bullet in exp.get("bullets", []):
-                b = doc.add_paragraph(bullet, style="List Bullet")
-                b.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                b.paragraph_format.space_after = Pt(1)
+                role = doc.add_paragraph()
+                role.paragraph_format.space_after = Pt(1)
+                _runs(role, str(exp["title"]), italic=True)
+            for bullet in exp.get("bullets") or []:
+                _bullet(doc, bullet)
 
-    if data.get("education"):
-        _section_heading(doc, "Education")
-        for edu in data["education"]:
-            org = edu.get("institution", "")
-            _entry_header(doc, org, edu.get("year", ""))
-            if edu.get("degree"):
-                deg_p = doc.add_paragraph()
-                deg_p.paragraph_format.space_after = Pt(2)
-                deg_p.add_run(edu["degree"]).italic = True
+    for key, heading in LIST_SECTIONS:
+        items = data.get(key) or []
+        if not items:
+            continue
+        _section(doc, heading)
+        for item in items:
+            _bullet(doc, str(item))
 
-    for key, heading in (
-        ("certifications", "Certifications"),
-        ("awards", "Awards"),
-        ("projects", "Projects"),
-    ):
-        items = data.get(key)
-        if items:
-            _section_heading(doc, heading)
-            for item in items:
-                b = doc.add_paragraph(str(item), style="List Bullet")
-                b.paragraph_format.space_after = Pt(1)
-
-    if data.get("skills"):
-        _section_heading(doc, "Skills")
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.add_run(", ".join(data["skills"]))
+    rows = _additional_info(data)
+    if rows:
+        _section(doc, "Additional Information")
+        for label, value in rows:
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            p.paragraph_format.space_after = Pt(1)
+            p.add_run(f"{label}: ").bold = True
+            _runs(p, value)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -177,26 +278,26 @@ def generate_cover_letter_docx(
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(2)
+    name_p.paragraph_format.space_after = Pt(1)
     name_run = name_p.add_run(full_name)
     name_run.bold = True
-    name_run.font.size = Pt(18)
+    name_run.font.size = Pt(15)
 
     contact_parts = _contact_line(contact)
     if contact_parts:
         contact_p = doc.add_paragraph()
         contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(8)
-        run = contact_p.add_run(" | ".join(contact_parts))
-        run.font.size = Pt(9.5)
-        _set_bottom_border(contact_p, color="000000")
+        contact_p.paragraph_format.space_after = Pt(10)
+        contact_p.add_run(" | ".join(contact_parts)).font.size = Pt(10)
+        _rule(contact_p, "bottom")
 
     for paragraph in content.split("\n\n"):
         paragraph = paragraph.strip()
         if paragraph:
-            p = doc.add_paragraph(paragraph)
+            p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.space_after = Pt(8)
+            _runs(p, paragraph)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -207,31 +308,56 @@ def generate_cover_letter_docx(
 # CV — PDF (WeasyPrint)
 # --------------------------------------------------------------------------- #
 _CV_CSS = """
-@page { size: A4; margin: 1.5cm 1.6cm; }
-body { font-family: 'Times New Roman', Georgia, serif; font-size: 10.5pt; color: #000; line-height: 1.25; }
-.name { text-align: center; font-size: 20pt; font-weight: bold; margin: 0 0 2px; }
-.contact { text-align: center; font-size: 9.5pt; margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid #000; }
-.contact a { color: #0563C1; text-decoration: none; }
-.summary { text-align: justify; margin: 6px 0 4px; }
-h2.section { font-size: 11.5pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
-             letter-spacing: .3px; border-bottom: 1.2px solid #BFBFBF; padding-bottom: 2px; margin: 12px 0 5px; }
-.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
-.entry-org { font-weight: bold; }
+@page { size: A4; margin: 0.5in 0.51in; }
+html, body { margin: 0; padding: 0; }
+body { font-family: 'Times New Roman', 'Liberation Serif', Georgia, serif;
+       font-size: 10pt; color: #000; line-height: 1.19; }
+p { margin: 0; }
+.name { text-align: center; font-size: 12pt; font-weight: bold; margin: 0 0 4px; }
+.contact { text-align: center; font-size: 10pt; margin: 0 0 14px; }
+.contact a { color: #0563C1; }
+/* The master's rules stop short of the right text edge — match that inset. */
+.rule { border-top: 1px solid #888888; width: 6.75in; margin: 0 0 0 0.035in; height: 0; }
+.rule.pre-section { margin-top: 12px; }
+.summary { text-align: justify; margin: 4px 0 0; }
+h2.section { font-size: 12pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
+             margin: 4px 0 2px; }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px; }
+.entry-org { font-weight: normal; }
 .entry-period { white-space: nowrap; padding-left: 14px; }
-.entry-role { font-style: italic; margin: 0 0 2px; }
-ul { margin: 2px 0 4px; padding-left: 18px; }
-li { margin-bottom: 2px; text-align: justify; }
-.skills { text-align: justify; margin-top: 2px; }
+.entry-role { font-style: italic; margin-bottom: 1px; }
+.edu-period { margin: 1px 0 1px; }
+ul { margin: 1px 0 3px; padding-left: 48px; list-style: none; }
+li { position: relative; margin-bottom: 2px; text-align: justify; }
+li::before { content: "\\25cf"; position: absolute; left: -24px; font-size: 8.5pt; top: 0.05em; }
+.info-row { text-align: justify; margin-bottom: 1px; }
+.info-label { font-weight: bold; }
 """
 
+_RULE = "<div class='rule'></div>"
+_RULE_SECTION = "<div class='rule pre-section'></div>"
 
-def _entry_head_html(org: str, period: str) -> str:
-    return (
-        "<div class='entry-head'>"
-        f"<span class='entry-org'>{escape(org)}</span>"
-        f"<span class='entry-period'>{escape(period)}</span>"
-        "</div>"
-    )
+
+def _inline(text: str) -> str:
+    """Escape, then honour **bold** markers."""
+    out = []
+    for chunk, bold in _split_bold(str(text)):
+        safe = escape(chunk)
+        out.append(f"<b>{safe}</b>" if bold else safe)
+    return "".join(out)
+
+
+def _section_html(title: str) -> str:
+    return f"{_RULE_SECTION}<h2 class='section'>{title}</h2>"
+
+
+def _bullets_html(items) -> list[str]:
+    if not items:
+        return []
+    parts = ["<ul>"]
+    parts += [f"<li>{_inline(b)}</li>" for b in items]
+    parts.append("</ul>")
+    return parts
 
 
 def _contact_html(contact: dict | None) -> str:
@@ -258,43 +384,56 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
             "</style></head><body>",
             f"<p class='name'>{escape(full_name)}</p>",
             _contact_html(data.get("contact")),
+            _RULE,
         ]
 
         if data.get("summary"):
-            parts.append(f"<p class='summary'>{escape(data['summary'])}</p>")
+            parts.append(f"<p class='summary'>{_inline(data['summary'])}</p>")
 
-        if data.get("experience"):
-            parts.append("<h2 class='section'>Work Experiences</h2>")
-            for exp in data["experience"]:
-                parts.append(_entry_head_html(exp.get("company", ""), exp.get("period", "")))
-                if exp.get("title"):
-                    parts.append(f"<p class='entry-role'>{escape(exp['title'])}</p>")
-                if exp.get("bullets"):
-                    parts.append("<ul>")
-                    parts.extend(f"<li>{escape(b)}</li>" for b in exp["bullets"])
-                    parts.append("</ul>")
-
-        if data.get("education"):
-            parts.append("<h2 class='section'>Education</h2>")
-            for edu in data["education"]:
-                parts.append(_entry_head_html(edu.get("institution", ""), edu.get("year", "")))
-                if edu.get("degree"):
-                    parts.append(f"<p class='entry-role'>{escape(edu['degree'])}</p>")
+        education = _exp_entries(data, "education")
+        if education:
+            parts.append(_section_html("Education"))
+            for edu in education:
+                label = _edu_label(edu)
+                if label:
+                    parts.append(f"<p>{_inline(label)}</p>")
+                if edu.get("year"):
+                    parts.append(f"<p class='edu-period'>{escape(str(edu['year']))}</p>")
+                parts += _bullets_html(edu.get("bullets"))
 
         for key, heading in (
-            ("certifications", "Certifications"),
-            ("awards", "Awards"),
-            ("projects", "Projects"),
+            ("experience", "Work Experiences"),
+            (_volunteer_key(data), "Volunteer &amp; Leadership Experiences"),
         ):
-            items = data.get(key)
-            if items:
-                parts.append(f"<h2 class='section'>{heading}</h2><ul>")
-                parts.extend(f"<li>{escape(str(item))}</li>" for item in items)
-                parts.append("</ul>")
+            entries = _exp_entries(data, key)
+            if not entries:
+                continue
+            parts.append(_section_html(heading))
+            for exp in entries:
+                parts.append(
+                    "<div class='entry-head'>"
+                    f"<span class='entry-org'>{_inline(_org_label(exp))}</span>"
+                    f"<span class='entry-period'>{escape(str(exp.get('period') or ''))}</span>"
+                    "</div>"
+                )
+                if exp.get("title"):
+                    parts.append(f"<p class='entry-role'>{escape(str(exp['title']))}</p>")
+                parts += _bullets_html(exp.get("bullets"))
 
-        if data.get("skills"):
-            parts.append("<h2 class='section'>Skills</h2>")
-            parts.append(f"<p class='skills'>{escape(', '.join(data['skills']))}</p>")
+        for key, heading in LIST_SECTIONS:
+            items = data.get(key) or []
+            if items:
+                parts.append(_section_html(heading))
+                parts += _bullets_html(items)
+
+        rows = _additional_info(data)
+        if rows:
+            parts.append(_section_html("Additional Information"))
+            for label, value in rows:
+                parts.append(
+                    f"<p class='info-row'><span class='info-label'>{escape(label)}:</span> "
+                    f"{_inline(value)}</p>"
+                )
 
         parts.append("</body></html>")
         return HTML(string="\n".join(parts)).write_pdf()
@@ -310,13 +449,13 @@ def generate_cover_letter_pdf(
         from weasyprint import HTML
 
         paragraphs = "".join(
-            f"<p>{escape(p.strip())}</p>" for p in content.split("\n\n") if p.strip()
+            f"<p>{_inline(p.strip())}</p>" for p in content.split("\n\n") if p.strip()
         )
         css = (
-            "@page { size: A4; margin: 2cm 2.2cm; }"
+            "@page { size: A4; margin: 0.8in 0.9in; }"
             "body { font-family: 'Times New Roman', Georgia, serif; font-size: 11pt; color: #000; line-height: 1.5; }"
-            ".name { text-align: center; font-size: 18pt; font-weight: bold; margin: 0 0 2px; }"
-            ".contact { text-align: center; font-size: 9.5pt; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 1px solid #000; }"
+            ".name { text-align: center; font-size: 15pt; font-weight: bold; margin: 0 0 1px; }"
+            ".contact { text-align: center; font-size: 10pt; margin: 0 0 14px; padding-bottom: 4px; border-bottom: 1px solid #999; }"
             "p { margin-bottom: 10px; text-align: justify; }"
         )
         html_content = (

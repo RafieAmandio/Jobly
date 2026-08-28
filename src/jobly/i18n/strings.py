@@ -13,9 +13,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "id": "Masukkan alamat email kamu (untuk notifikasi & pemulihan akun):",
         "en": "Enter your email address (for notifications & account recovery):",
     },
+    "invalid_email": {
+        "id": "Masukkan alamat email yang valid.",
+        "en": "Please enter a valid email address.",
+    },
     "ask_phone": {
         "id": "Masukkan nomor telepon kamu (opsional, ketik /skip untuk lewati):",
         "en": "Enter your phone number (optional, type /skip to skip):",
+    },
+    "edit_phone_prompt": {
+        "id": "Masukkan nomor telepon baru kamu, atau ketik /skip untuk menghapus nomor telepon saat ini:",
+        "en": "Enter your new phone number, or type /skip to remove your current phone number:",
+    },
+    "phone_updated": {
+        "id": "Nomor telepon diperbarui! ✅",
+        "en": "Phone number updated! ✅",
+    },
+    "phone_removed": {
+        "id": "Nomor telepon dihapus! ✅",
+        "en": "Phone number removed! ✅",
     },
     "ask_categories": {
         "id": "Pilih kategori pekerjaan yang kamu minati (bisa pilih lebih dari satu):",
@@ -96,6 +112,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "cv_uploaded": {
         "id": "✅ CV berhasil diupload dan diproses!",
         "en": "✅ CV uploaded and processed successfully!",
+    },
+    "cv_removed": {
+        "id": "✅ CV saat ini berhasil dihapus.",
+        "en": "✅ Your current CV has been removed.",
     },
     "help": {
         "id": (

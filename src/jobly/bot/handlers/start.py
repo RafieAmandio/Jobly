@@ -1,3 +1,5 @@
+import re
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -18,10 +20,11 @@ from jobly.constants.categories import CATEGORIES
 from jobly.constants.levels import EXPERIENCE_LEVELS
 from jobly.constants.locations import LOCATIONS
 from jobly.i18n.strings import t
-from jobly.models.user import User
 from jobly.services.user import create_user, get_user_by_telegram_id, save_preferences
 
 router = Router()
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.message(CommandStart())
@@ -60,7 +63,13 @@ async def on_name(message: Message, state: FSMContext) -> None:
 async def on_email(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("language", "id")
-    await state.update_data(email=message.text.strip())
+    email = message.text.strip()
+
+    if not EMAIL_RE.fullmatch(email):
+        await message.answer(t("invalid_email", lang))
+        return
+
+    await state.update_data(email=email)
     await state.set_state(OnboardingState.phone)
     await message.answer(t("ask_phone", lang))
 
