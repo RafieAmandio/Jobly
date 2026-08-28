@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
-# Palette/format mirrors the owner's master CV (serif body, centred header,
-# uppercase navy section titles with rules, company-left / dates-right rows).
+# ATS-friendly format: sans-serif body, simple headings, no tables/graphics.
 NAVY = RGBColor(0x1F, 0x4E, 0x79)
 LINK_BLUE = RGBColor(0x05, 0x63, 0xC1)
 RIGHT_TAB_INCHES = 7.0
+BODY_FONT = "Arial"
+BODY_FONT_SIZE = Pt(9)
 
 
 def _contact_line(contact: dict | None) -> list[str]:
@@ -170,10 +171,10 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
         section.right_margin = Inches(0.63)
 
     style = doc.styles["Normal"]
-    style.font.name = "Times New Roman"
-    style.font.size = Pt(10.5)
+    style.font.name = BODY_FONT
+    style.font.size = BODY_FONT_SIZE
     style.paragraph_format.space_after = Pt(0)
-    style.paragraph_format.line_spacing = 1.1
+    style.paragraph_format.line_spacing = 1.05
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -305,21 +306,22 @@ def generate_cover_letter_docx(
 # CV — PDF (WeasyPrint)
 # --------------------------------------------------------------------------- #
 _CV_CSS = """
-@page { size: A4; margin: 1.5cm 1.6cm; }
-body { font-family: 'Times New Roman', Georgia, serif; font-size: 10.5pt; color: #000; line-height: 1.25; }
-.name { text-align: center; font-size: 20pt; font-weight: bold; margin: 0 0 2px; }
-.contact { text-align: center; font-size: 9.5pt; margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid #000; }
+@page { size: A4; margin: 1.2cm 1.4cm; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #000; line-height: 1.2; }
+.name { text-align: center; font-size: 17pt; font-weight: bold; margin: 0 0 2px; }
+.contact { text-align: center; font-size: 9pt; margin: 0 0 5px; padding-bottom: 5px; border-bottom: 1px solid #000; }
 .contact a { color: #0563C1; text-decoration: none; }
-.summary { text-align: justify; margin: 6px 0 4px; }
-h2.section { font-size: 11.5pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
-             letter-spacing: .3px; border-bottom: 1.2px solid #BFBFBF; padding-bottom: 2px; margin: 12px 0 5px; }
-.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
+.summary { text-align: justify; margin: 5px 0 3px; }
+h2.section { font-size: 10pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
+             letter-spacing: .3px; border-bottom: 1.2px solid #BFBFBF; padding-bottom: 2px; margin: 9px 0 4px; }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px; }
 .entry-org { font-weight: bold; }
-.entry-period { white-space: nowrap; padding-left: 14px; }
+.entry-period { white-space: nowrap; padding-left: 10px; }
 .entry-role { font-style: italic; margin: 0 0 2px; }
-ul { margin: 2px 0 4px; padding-left: 18px; }
-li { margin-bottom: 2px; text-align: justify; }
-.skills { text-align: justify; margin-top: 2px; }
+p { margin: 0 0 3px; }
+ul { margin: 1px 0 3px; padding-left: 16px; }
+li { margin-bottom: 1px; text-align: justify; }
+.skills { text-align: justify; margin-top: 1px; }
 """
 
 

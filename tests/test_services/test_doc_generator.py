@@ -1,6 +1,8 @@
 from io import BytesIO
 from zipfile import ZipFile
 
+from docx import Document
+
 from jobly.services.doc_generator import generate_cover_letter_docx, generate_cv_docx
 
 
@@ -125,10 +127,12 @@ def test_generate_cv_docx_financial_light_sections_and_links():
     }
 
     result = generate_cv_docx(data, "Rafie Amandio Fauzan")
-    docx = ZipFile(BytesIO(result))
-    xml = docx.read("word/document.xml").decode("utf-8")
-    rels = docx.read("word/_rels/document.xml.rels").decode("utf-8")
+    parsed = Document(BytesIO(result))
+    xml = ZipFile(BytesIO(result)).read("word/document.xml").decode("utf-8")
+    rels = ZipFile(BytesIO(result)).read("word/_rels/document.xml.rels").decode("utf-8")
 
+    assert parsed.styles["Normal"].font.name == "Arial"
+    assert round(parsed.styles["Normal"].font.size.pt) == 9
     assert "LEADERSHIP" in xml
     assert "EXTRA MILES" in xml
     assert "SKILL SHOWCASE" in xml
