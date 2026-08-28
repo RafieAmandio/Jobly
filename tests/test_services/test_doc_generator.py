@@ -1,4 +1,5 @@
-import pytest
+from io import BytesIO
+from zipfile import ZipFile
 
 from jobly.services.doc_generator import generate_cover_letter_docx, generate_cv_docx
 
@@ -79,3 +80,57 @@ def test_generate_cover_letter_docx():
     assert isinstance(result, bytes)
     assert len(result) > 0
     assert result[:2] == b"PK"
+
+
+def test_generate_cv_docx_financial_light_sections_and_links():
+    data = {
+        "contact": {
+            "location": "Jakarta Selatan",
+            "email": "rafie@example.com",
+            "phone": "+62 813 0000 0000",
+            "portfolio": "https://portfolio.example.com",
+        },
+        "summary": "Finance-focused operator.",
+        "experience": [
+            {
+                "company": "Financial Light",
+                "title": "Analyst",
+                "period": "Jan 2024 - Present",
+                "bullets": ["Improved conversion by 22%.", "Built reporting.", "Owned ops.", "Extra bullet should not appear"],
+            }
+        ],
+        "leadership": [
+            {
+                "organization": "BEM UI",
+                "title": "Treasurer",
+                "period": "2023 - 2024",
+                "bullets": ["Managed Rp 120M budget.", "Ran 4 events.", "Led 12 members."],
+                "brief": "Student executive body.",
+            }
+        ],
+        "education": [
+            {
+                "institution": "Universitas Indonesia",
+                "degree": "Accounting",
+                "year": "2021 - 2025",
+                "details": "Dean list.",
+            }
+        ],
+        "extra_miles": ["Hackathon Winner - UI - 2024"],
+        "skills": {
+            "technical": ["Financial Modeling", "SQL"],
+            "soft": ["Stakeholder Management"],
+            "tools": ["Excel", "Power BI"],
+        },
+    }
+
+    result = generate_cv_docx(data, "Rafie Amandio Fauzan")
+    docx = ZipFile(BytesIO(result))
+    xml = docx.read("word/document.xml").decode("utf-8")
+    rels = docx.read("word/_rels/document.xml.rels").decode("utf-8")
+
+    assert "LEADERSHIP" in xml
+    assert "EXTRA MILES" in xml
+    assert "SKILL SHOWCASE" in xml
+    assert "portfolio.example.com" in xml
+    assert "mailto:rafie@example.com" in rels

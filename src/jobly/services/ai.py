@@ -42,7 +42,13 @@ async def tailor_cv_content(
                     "content": (
                         "You are an expert CV writer specializing in the Indonesian job market. "
                         "You tailor CVs to match specific job descriptions while keeping the content "
-                        "truthful to the candidate's actual experience.\n\n"
+                        "truthful to the candidate's actual experience. Follow these CV formatting rules: "
+                        "personal info should use name, broad-area location only (not full detailed address), "
+                        "phone should be suitable for +62 formatting, and email plus portfolio/link should be "
+                        "kept usable as hyperlinks; work and leadership descriptions must be bullet points only, "
+                        "maximum 3 bullets each, with quantified impact whenever possible; education should "
+                        "highlight achievements/activities briefly; extra achievements can go in an extra-miles "
+                        "style section; skills should be grouped into technical, soft, and tools.\n\n"
                         "Instructions:\n"
                         "1. Analyze the job description for key requirements, skills, and keywords\n"
                         "2. Rewrite the CV sections to emphasize relevant experience\n"
@@ -50,20 +56,23 @@ async def tailor_cv_content(
                         "4. Reorder skills to prioritize those mentioned in the JD\n"
                         "5. Rephrase bullet points using action verbs and quantified achievements\n"
                         "6. Keep all factual information (dates, companies, degrees) unchanged\n"
-                        "7. Extract the candidate's contact details (location, email, phone, "
-                        "LinkedIn URL) from the CV into the 'contact' object. Omit any field "
+                        "7. Extract the candidate's contact details (broad-area location, email, phone, "
+                        "LinkedIn URL or portfolio link) from the CV into the 'contact' object. Omit any field "
                         "not present in the CV; never invent contact details.\n"
-                        "8. If the CV lists certifications, awards/achievements, or notable "
-                        "projects, include the most relevant ones (each as a short one-line "
-                        "string). Omit a section entirely if the CV has none.\n"
-                        f"9. Output in {lang_name}\n\n"
+                        "8. Include a 'leadership' section when the CV contains organizations, committees, "
+                        "volunteering, or campus leadership relevant to the role.\n"
+                        "9. If the CV lists certifications, awards/achievements, or notable "
+                        "projects, include the most relevant ones as short one-line strings for an extra-miles "
+                        "style section. Omit a section entirely if the CV has none.\n"
+                        f"10. Output in {lang_name}\n\n"
                         "Output valid JSON with this structure:\n"
-                        '{"contact": {"location": "...", "email": "...", "phone": "...", "linkedin": "..."}, '
+                        '{"contact": {"location": "...", "email": "...", "phone": "...", "portfolio": "...", "linkedin": "..."}, '
                         '"summary": "...", "experience": [{"company": "...", "title": "...", '
                         '"period": "...", "bullets": ["..."]}], '
-                        '"education": [{"institution": "...", "degree": "...", "year": "..."}], '
-                        '"certifications": ["..."], "awards": ["..."], "projects": ["..."], '
-                        '"skills": ["..."]}'
+                        '"leadership": [{"organization": "...", "title": "...", "period": "...", "brief": "...", "bullets": ["..."]}], '
+                        '"education": [{"institution": "...", "degree": "...", "year": "...", "details": "..."}], '
+                        '"extra_miles": ["..."], '
+                        '"skills": {"technical": ["..."], "soft": ["..."], "tools": ["..."]}}'
                     ),
                 },
                 {
