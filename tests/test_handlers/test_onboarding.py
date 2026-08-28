@@ -6,6 +6,7 @@ from jobly.bot.handlers.start import (
     on_arrangement_done,
     on_arrangement_select,
     on_category_done,
+    on_category_page,
     on_category_select,
     on_confirm,
     on_cv_text,
@@ -166,6 +167,34 @@ async def test_on_email_accepts_valid_email():
     assert data["email"] == "john@example.com"
     msg.answer.assert_called_once()
     assert "phone" in msg.answer.call_args[0][0].lower()
+
+@pytest.mark.asyncio
+async def test_category_selection_persists_across_pages_and_done_advances():
+    bot = MockBot()
+    state = MemoryFSMContext()
+    await state.set_state(OnboardingState.categories)
+    await state.set_data({"language": "en", "selected_categories": [], "cat_page": 0})
+
+    page0_message = make_message(user_id=999888777, bot=bot)
+    cb = make_callback(data="cat:0", user_id=999888777, bot=bot, message=page0_message)
+    await on_category_select(cb, state)
+
+    cb = make_callback(data="cat_page:1", user_id=999888777, bot=bot, message=page0_message)
+    await on_category_page(cb, state)
+
+    page1_message = make_message(user_id=999888777, bot=bot)
+    cb = make_callback(data="cat:8", user_id=999888777, bot=bot, message=page1_message)
+    await on_category_select(cb, state)
+
+    data = await state.get_data()
+    assert data["selected_categories"] == [0, 8]
+    assert data["cat_page"] == 1
+
+    cb = make_callback(data="cat_done", user_id=999888777, bot=bot, message=page1_message)
+    await on_category_done(cb, state)
+
+    assert await state.get_state() == OnboardingState.experience.state
+    page1_message.edit_text.assert_called_once()
 
 
 @pytest.mark.asyncio
