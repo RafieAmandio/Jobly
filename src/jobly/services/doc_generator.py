@@ -147,6 +147,29 @@ def _add_contact_line(paragraph, contact: dict | None) -> None:
             paragraph.add_run(text)
 
 
+def _build_cv_header(doc, full_name: str, contact: dict | None) -> None:
+    section = doc.sections[0]
+    section.top_margin = Inches(1.15)
+    section.header_distance = Inches(0.25)
+    header = section.header
+    header.is_linked_to_previous = False
+
+    name_p = header.paragraphs[0]
+    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    name_p.paragraph_format.space_after = Pt(2)
+    name_run = name_p.add_run(full_name)
+    name_run.bold = True
+    name_run.font.size = Pt(17)
+
+    contact_parts = _contact_line(contact)
+    if contact_parts:
+        contact_p = header.add_paragraph()
+        contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        contact_p.paragraph_format.space_after = Pt(2)
+        _add_contact_line(contact_p, contact)
+        _set_bottom_border(contact_p, color="000000")
+
+
 def _skill_groups(data: dict) -> list[tuple[str, list[str]]]:
     skills = data.get("skills") or {}
     if isinstance(skills, list):
@@ -165,7 +188,7 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     doc = Document()
 
     for section in doc.sections:
-        section.top_margin = Inches(0.6)
+        section.top_margin = Inches(1.15)
         section.bottom_margin = Inches(0.6)
         section.left_margin = Inches(0.63)
         section.right_margin = Inches(0.63)
@@ -176,20 +199,7 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     style.paragraph_format.space_after = Pt(0)
     style.paragraph_format.line_spacing = 1.05
 
-    name_p = doc.add_paragraph()
-    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(2)
-    name_run = name_p.add_run(full_name)
-    name_run.bold = True
-    name_run.font.size = Pt(20)
-
-    contact_parts = _contact_line(data.get("contact"))
-    if contact_parts:
-        contact_p = doc.add_paragraph()
-        contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(2)
-        _add_contact_line(contact_p, data.get("contact"))
-        _set_bottom_border(contact_p, color="000000")
+    _build_cv_header(doc, full_name, data.get("contact"))
 
     if data.get("summary"):
         p = doc.add_paragraph()
@@ -306,11 +316,16 @@ def generate_cover_letter_docx(
 # CV — PDF (WeasyPrint)
 # --------------------------------------------------------------------------- #
 _CV_CSS = """
-@page { size: A4; margin: 1.2cm 1.4cm; }
+@page {
+  size: A4;
+  margin: 2.6cm 1.4cm 1.2cm 1.4cm;
+  @top-center { content: element(cv-header); }
+}
 body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #000; line-height: 1.2; }
-.name { text-align: center; font-size: 17pt; font-weight: bold; margin: 0 0 2px; }
-.contact { text-align: center; font-size: 9pt; margin: 0 0 5px; padding-bottom: 5px; border-bottom: 1px solid #000; }
-.contact a { color: #0563C1; text-decoration: none; }
+.cv-header { position: running(cv-header); text-align: center; }
+.cv-header .name { font-size: 17pt; font-weight: bold; margin: 0 0 2px; }
+.cv-header .contact { font-size: 9pt; margin: 0 0 5px; padding-bottom: 5px; border-bottom: 1px solid #000; }
+.cv-header .contact a { color: #0563C1; text-decoration: none; }
 .summary { text-align: justify; margin: 5px 0 3px; }
 h2.section { font-size: 10pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
              letter-spacing: .3px; border-bottom: 1.2px solid #BFBFBF; padding-bottom: 2px; margin: 9px 0 4px; }
@@ -334,7 +349,7 @@ def _entry_head_html(org: str, period: str) -> str:
     )
 
 
-def _contact_html(contact: dict | None) -> str:
+def _contact_html(contact: dict | None, *, class_name: str = "contact") -> str:
     parts = _contact_line(contact)
     if not parts:
         return ""
@@ -356,7 +371,7 @@ def _contact_html(contact: dict | None) -> str:
         href = portfolio_text if portfolio_text.startswith("http") else f"https://{portfolio_text}"
         rendered.append(f"<a href='{escape(href)}'>{escape(portfolio_text)}</a>")
 
-    return f"<p class='contact'>{' | '.join(rendered)}</p>"
+    return f"<p class='{class_name}'>{' | '.join(rendered)}</p>"
 
 
 def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
@@ -367,8 +382,10 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
             "<html><head><meta charset='utf-8'><style>",
             _CV_CSS,
             "</style></head><body>",
-            f"<p class='name'>{escape(full_name)}</p>",
-            _contact_html(data.get("contact")),
+            "<div class='cv-header'>",
+            f"<div class='name'>{escape(full_name)}</div>",
+            _contact_html(data.get("contact"), class_name="contact"),
+            "</div>",
         ]
 
         if data.get("summary"):

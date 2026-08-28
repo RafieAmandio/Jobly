@@ -128,13 +128,39 @@ def test_generate_cv_docx_financial_light_sections_and_links():
 
     result = generate_cv_docx(data, "Rafie Amandio Fauzan")
     parsed = Document(BytesIO(result))
-    xml = ZipFile(BytesIO(result)).read("word/document.xml").decode("utf-8")
-    rels = ZipFile(BytesIO(result)).read("word/_rels/document.xml.rels").decode("utf-8")
+    docx = ZipFile(BytesIO(result))
+    xml = docx.read("word/document.xml").decode("utf-8")
+    header_xml_name = next(name for name in docx.namelist() if name.startswith("word/header"))
+    header_xml = docx.read(header_xml_name).decode("utf-8")
+    header_rels_name = next(name for name in docx.namelist() if name.startswith("word/_rels/header") and name.endswith('.rels'))
+    header_rels = docx.read(header_rels_name).decode("utf-8")
 
     assert parsed.styles["Normal"].font.name == "Arial"
     assert round(parsed.styles["Normal"].font.size.pt) == 9
     assert "LEADERSHIP" in xml
     assert "EXTRA MILES" in xml
     assert "SKILL SHOWCASE" in xml
-    assert "portfolio.example.com" in xml
-    assert "mailto:rafie@example.com" in rels
+    assert "portfolio.example.com" in header_xml
+    assert "mailto:rafie@example.com" in header_rels
+
+
+def test_generate_cv_docx_repeats_header_via_document_header_part():
+    data = {
+        "contact": {
+            "location": "Jakarta Selatan",
+            "email": "rafie@example.com",
+            "phone": "+62 813 0000 0000",
+            "portfolio": "https://portfolio.example.com",
+        },
+        "summary": "Finance-focused operator.",
+    }
+
+    result = generate_cv_docx(data, "Rafie Amandio Fauzan")
+    docx = ZipFile(BytesIO(result))
+    names = docx.namelist()
+
+    assert any(name.startswith("word/header") for name in names)
+    header_xml = next(docx.read(name).decode("utf-8") for name in names if name.startswith("word/header"))
+    assert "Rafie Amandio Fauzan" in header_xml
+    assert "rafie@example.com" in header_xml
+    assert "portfolio.example.com" in header_xml
