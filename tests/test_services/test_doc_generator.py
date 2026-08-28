@@ -84,13 +84,17 @@ def test_generate_cover_letter_docx():
     assert result[:2] == b"PK"
 
 
-def test_generate_cv_docx_financial_light_sections_and_links():
+def test_generate_cv_docx_uses_master_cv_format():
+    """The renderer must keep the owner's master-CV look, not a sans-serif house style."""
+    import io
+
+    from docx import Document
+
     data = {
         "contact": {
             "location": "Jakarta Selatan",
             "email": "rafie@example.com",
             "phone": "+62 813 0000 0000",
-            "portfolio": "https://portfolio.example.com",
         },
         "summary": "Finance-focused operator.",
         "experience": [
@@ -98,69 +102,30 @@ def test_generate_cv_docx_financial_light_sections_and_links():
                 "company": "Financial Light",
                 "title": "Analyst",
                 "period": "Jan 2024 - Present",
-                "bullets": ["Improved conversion by 22%.", "Built reporting.", "Owned ops.", "Extra bullet should not appear"],
+                "bullets": ["Improved conversion by 22%."],
             }
         ],
+        # PR #12's renamed keys must still render.
         "leadership": [
             {
-                "organization": "BEM UI",
+                "company": "BEM UI",
                 "title": "Treasurer",
                 "period": "2023 - 2024",
-                "bullets": ["Managed Rp 120M budget.", "Ran 4 events.", "Led 12 members."],
-                "brief": "Student executive body.",
+                "bullets": ["Managed Rp 120M budget."],
             }
         ],
-        "education": [
-            {
-                "institution": "Universitas Indonesia",
-                "degree": "Accounting",
-                "year": "2021 - 2025",
-                "details": "Dean list.",
-            }
-        ],
-        "extra_miles": ["Hackathon Winner - UI - 2024"],
-        "skills": {
-            "technical": ["Financial Modeling", "SQL"],
-            "soft": ["Stakeholder Management"],
-            "tools": ["Excel", "Power BI"],
-        },
+        "extra_miles": ["1st Place, Galaxy Hackathon"],
     }
 
     result = generate_cv_docx(data, "Rafie Amandio Fauzan")
-    parsed = Document(BytesIO(result))
-    docx = ZipFile(BytesIO(result))
-    xml = docx.read("word/document.xml").decode("utf-8")
-    header_xml_name = next(name for name in docx.namelist() if name.startswith("word/header"))
-    header_xml = docx.read(header_xml_name).decode("utf-8")
-    header_rels_name = next(name for name in docx.namelist() if name.startswith("word/_rels/header") and name.endswith('.rels'))
-    header_rels = docx.read(header_rels_name).decode("utf-8")
+    parsed = Document(io.BytesIO(result))
+    text = [p.text for p in parsed.paragraphs]
 
-    assert parsed.styles["Normal"].font.name == "Arial"
-    assert round(parsed.styles["Normal"].font.size.pt) == 9
-    assert "LEADERSHIP" in xml
-    assert "EXTRA MILES" in xml
-    assert "SKILL SHOWCASE" in xml
-    assert "portfolio.example.com" in header_xml
-    assert "mailto:rafie@example.com" in header_rels
-
-
-def test_generate_cv_docx_repeats_header_via_document_header_part():
-    data = {
-        "contact": {
-            "location": "Jakarta Selatan",
-            "email": "rafie@example.com",
-            "phone": "+62 813 0000 0000",
-            "portfolio": "https://portfolio.example.com",
-        },
-        "summary": "Finance-focused operator.",
-    }
-
-    result = generate_cv_docx(data, "Rafie Amandio Fauzan")
-    docx = ZipFile(BytesIO(result))
-    names = docx.namelist()
-
-    assert any(name.startswith("word/header") for name in names)
-    header_xml = next(docx.read(name).decode("utf-8") for name in names if name.startswith("word/header"))
-    assert "Rafie Amandio Fauzan" in header_xml
-    assert "rafie@example.com" in header_xml
-    assert "portfolio.example.com" in header_xml
+    assert parsed.styles["Normal"].font.name == "Times New Roman"
+    assert round(parsed.styles["Normal"].font.size.pt) == 10
+    assert "WORK EXPERIENCES" in text
+    # PR #12's renamed keys must still reach the page.
+    assert "VOLUNTEER & LEADERSHIP EXPERIENCES" in text
+    assert "EXTRA MILES" in text
+    assert any("Managed Rp 120M budget." in t for t in text)
+    assert any("1st Place, Galaxy Hackathon" in t for t in text)
