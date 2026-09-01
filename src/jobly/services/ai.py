@@ -96,10 +96,16 @@ async def tailor_cv_content(
 
 
 async def generate_cover_letter_content(
-    cv_text: str, job_description: str, job_title: str, company: str, lang: str = "id"
+    cv_text: str,
+    job_description: str,
+    job_title: str,
+    company: str,
+    lang: str = "id",
+    candidate_level: str | None = None,
 ) -> str | None:
     client = get_ai_client()
     lang_name = "Bahasa Indonesia" if lang == "id" else "English"
+    level_hint = candidate_level or "unknown"
 
     try:
         response = await client.chat.completions.create(
@@ -109,22 +115,27 @@ async def generate_cover_letter_content(
                     "role": "system",
                     "content": (
                         "You are an expert cover letter writer for the Indonesian job market. "
-                        "Generate a professional, personalized cover letter.\n\n"
+                        "Generate a professional, personalized cover letter that follows this exact guideline.\n\n"
                         "Instructions:\n"
-                        '1. Address the hiring manager (use "Yth. HRD {company}" if no name)\n'
-                        "2. Opening: hook connecting candidate's passion to the role\n"
-                        "3. Body: 2-3 paragraphs mapping achievements to JD requirements\n"
-                        "4. Closing: call to action, availability, gratitude\n"
-                        "5. Keep to ~300-400 words\n"
-                        "6. Tone: professional but warm\n"
-                        f"7. Language: {lang_name}\n\n"
+                        "1. Adapt the seniority and examples to the candidate level/rank provided.\n"
+                        '2. Include a formal recipient line (use "Yth. HRD {company}" in Indonesian or "Dear Hiring Manager at {company}" in English when no name is available).\n'
+                        "3. Include a clear formal subject line that states the application intent.\n"
+                        "4. First paragraph: introduce the candidate and highlight the most recent, most impactful milestone.\n"
+                        "5. Middle paragraph: show passion/interest and connect it to past leadership experience when available.\n"
+                        "6. Middle paragraph: show the ultimate value added by proving the candidate has already operated in a professional field (internship, program, business, freelance, etc.).\n"
+                        "7. Explicitly bridge the candidate's background to the value they can offer this company and role.\n"
+                        "8. End with a warm professional closing.\n"
+                        "9. Keep the writing neat, structured, simple, and laser-focused.\n"
+                        "10. Keep to roughly 250-350 words and 4-6 short paragraphs after the subject/recipient lines.\n"
+                        f"11. Language: {lang_name}\n"
+                        "12. Output plain text only. Do not use markdown, bullet points, placeholders, or JSON.\n\n"
                         "Output the cover letter text only, no JSON wrapper."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Job Title: {job_title}\nCompany: {company}\n\n"
+                        f"Job Title: {job_title}\nCompany: {company}\nCandidate Level: {level_hint}\n\n"
                         f"Job Description:\n{job_description}\n\n"
                         f"Candidate CV:\n{cv_text}"
                     ),

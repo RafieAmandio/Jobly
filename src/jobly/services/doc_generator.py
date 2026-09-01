@@ -39,6 +39,25 @@ LIST_SECTIONS = (
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
 
+def _split_cover_letter_blocks(content: str) -> tuple[str | None, str | None, list[str]]:
+    blocks = [block.strip() for block in str(content or "").split("\n\n") if block.strip()]
+    subject = None
+    recipient = None
+    body = []
+
+    for block in blocks:
+        lowered = block.lower()
+        if subject is None and (lowered.startswith("subject:") or lowered.startswith("perihal:")):
+            subject = block
+            continue
+        if recipient is None and (lowered.startswith("yth.") or lowered.startswith("dear ")):
+            recipient = block
+            continue
+        body.append(block)
+
+    return subject, recipient, body
+
+
 def _contact_line(contact: dict | None) -> list[str]:
     """Ordered, non-empty contact fields for the centred header line."""
     if not contact:
@@ -264,6 +283,7 @@ def generate_cover_letter_docx(
     content: str, full_name: str, contact: dict | None = None
 ) -> bytes:
     doc = Document()
+    subject, recipient, body_blocks = _split_cover_letter_blocks(content)
 
     for section in doc.sections:
         section.top_margin = Inches(0.8)
@@ -291,13 +311,23 @@ def generate_cover_letter_docx(
         contact_p.add_run(" | ".join(contact_parts)).font.size = Pt(10)
         _rule(contact_p, "bottom")
 
-    for paragraph in content.split("\n\n"):
-        paragraph = paragraph.strip()
-        if paragraph:
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.space_after = Pt(8)
-            _runs(p, paragraph)
+    if subject:
+        subject_p = doc.add_paragraph()
+        subject_p.paragraph_format.space_before = Pt(4)
+        subject_p.paragraph_format.space_after = Pt(4)
+        subject_run = subject_p.add_run(subject)
+        subject_run.bold = True
+        subject_run.font.color.rgb = NAVY
+
+    if recipient:
+        recipient_p = doc.add_paragraph(recipient)
+        recipient_p.paragraph_format.space_after = Pt(8)
+
+    for paragraph in body_blocks:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p.paragraph_format.space_after = Pt(8)
+        _runs(p, paragraph)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -448,24 +478,30 @@ def generate_cover_letter_pdf(
     try:
         from weasyprint import HTML
 
-        paragraphs = "".join(
-            f"<p>{_inline(p.strip())}</p>" for p in content.split("\n\n") if p.strip()
-        )
+        subject, recipient, body_blocks = _split_cover_letter_blocks(content)
+        paragraphs = "".join(f"<p>{_inline(p.strip())}</p>" for p in body_blocks if p.strip())
         css = (
             "@page { size: A4; margin: 0.8in 0.9in; }"
             "body { font-family: 'Times New Roman', Georgia, serif; font-size: 11pt; color: #000; line-height: 1.5; }"
             ".name { text-align: center; font-size: 15pt; font-weight: bold; margin: 0 0 1px; }"
             ".contact { text-align: center; font-size: 10pt; margin: 0 0 14px; padding-bottom: 4px; border-bottom: 1px solid #999; }"
+            ".subject { margin: 8px 0 6px; font-weight: bold; color: #1F4E79; text-align: left; }"
+            ".recipient { margin: 0 0 10px; text-align: left; }"
             "p { margin-bottom: 10px; text-align: justify; }"
         )
-        html_content = (
-            "<html><head><meta charset='utf-8'><style>"
-            f"{css}</style></head><body>"
-            f"<p class='name'>{escape(full_name)}</p>"
-            f"{_contact_html(contact)}"
-            f"{paragraphs}"
-            "</body></html>"
-        )
+        html_parts = [
+            "<html><head><meta charset='utf-8'><style>",
+            css,
+            "</style></head><body>",
+            f"<p class='name'>{escape(full_name)}</p>",
+            _contact_html(contact),
+        ]
+        if subject:
+            html_parts.append(f"<p class='subject'>{_inline(subject)}</p>")
+        if recipient:
+            html_parts.append(f"<p class='recipient'>{_inline(recipient)}</p>")
+        html_parts.extend([paragraphs, "</body></html>"])
+        html_content = "".join(html_parts)
         return HTML(string=html_content).write_pdf()
     except Exception:
         logger.exception("Failed to generate cover letter PDF")
