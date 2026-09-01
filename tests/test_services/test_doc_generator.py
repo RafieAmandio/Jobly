@@ -15,8 +15,8 @@ def test_generate_cv_docx():
                 "company": "Gojek",
                 "period": "2021-present",
                 "bullets": [
-                    "Led migration to microservices",
-                    "Reduced latency by 40%",
+                    "Lead migration to microservices",
+                    "Reduce latency by 40%",
                 ],
             }
         ],
@@ -44,6 +44,7 @@ def test_generate_cv_docx_minimal():
 
 def test_generate_cv_docx_with_contact_and_extra_sections():
     data = {
+        "display_name": "Rafie",
         "contact": {
             "location": "Jakarta, Indonesia",
             "email": "rafie@example.com",
@@ -56,24 +57,40 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
                 "company": "REVALUE ACADEMY, Remote",
                 "title": "Senior Software Engineer",
                 "period": "March 2025 - Present",
-                "bullets": ["Built the backend from scratch."],
+                "bullets": ["Build the backend from scratch"],
             }
         ],
         "education": [
             {
                 "institution": "UNIVERSITAS INDONESIA",
                 "degree": "Computer Engineering",
+                "gpa": "3.85/4.00",
                 "year": "2021 - 2025",
+                "bullets": ["Relevant coursework: Distributed Systems, Machine Learning"],
             }
         ],
         "certifications": ["Cisco CCNA"],
-        "awards": ["1st Place — Galaxy Hackathon"],
-        "projects": ["ProjectXOXO — 90,000+ users"],
+        "awards": ["1st Place, Galaxy Hackathon"],
+        "projects": ["ProjectXOXO, 90,000+ users"],
+        "additional_info": {
+            "Languages": ["Indonesian", "English"],
+            "Tests": ["IELTS 7.0"],
+        },
         "skills": ["Python", "Go"],
     }
     result = generate_cv_docx(data, "Rafie Amandio Fauzan")
+    parsed = Document(BytesIO(result))
+    header_text = [p.text for p in parsed.sections[0].header.paragraphs]
+    body_text = [p.text for p in parsed.paragraphs]
+
     assert isinstance(result, bytes)
     assert result[:2] == b"PK"
+    assert any("Rafie | Jakarta, Indonesia | rafie@example.com" in text for text in header_text)
+    assert any("3.85/4.00" in text for text in body_text)
+    assert any("Relevant coursework: Distributed Systems, Machine Learning" in text for text in body_text)
+    assert "ADDITIONAL INFORMATION" in body_text
+    assert any("Languages: Indonesian, English" in text for text in body_text)
+    assert any("Tests: IELTS 7.0" in text for text in body_text)
 
 
 def test_generate_cover_letter_docx():
@@ -84,16 +101,12 @@ def test_generate_cover_letter_docx():
     assert result[:2] == b"PK"
 
 
-def test_generate_cv_docx_uses_master_cv_format():
-    """The renderer must keep the owner's master-CV look, not a sans-serif house style."""
-    import io
-
-    from docx import Document
-
+def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
     data = {
+        "display_name": "Dharma",
         "contact": {
-            "location": "Jakarta Selatan",
-            "email": "rafie@example.com",
+            "location": "Hong Kong SAR",
+            "email": "dharma@example.com",
             "phone": "+62 813 0000 0000",
         },
         "summary": "Finance-focused operator.",
@@ -102,30 +115,34 @@ def test_generate_cv_docx_uses_master_cv_format():
                 "company": "Financial Light",
                 "title": "Analyst",
                 "period": "Jan 2024 - Present",
-                "bullets": ["Improved conversion by 22%."],
+                "bullets": ["Improve conversion by 22%"],
             }
         ],
-        # PR #12's renamed keys must still render.
         "leadership": [
             {
-                "company": "BEM UI",
+                "organization": "BEM UI",
                 "title": "Treasurer",
                 "period": "2023 - 2024",
-                "bullets": ["Managed Rp 120M budget."],
+                "bullets": ["Managed Rp 120M budget"],
             }
         ],
         "extra_miles": ["1st Place, Galaxy Hackathon"],
     }
 
-    result = generate_cv_docx(data, "Rafie Amandio Fauzan")
-    parsed = Document(io.BytesIO(result))
+    result = generate_cv_docx(data, "Dharma Setiawan")
+    parsed = Document(BytesIO(result))
     text = [p.text for p in parsed.paragraphs]
+    header_text = [p.text for p in parsed.sections[0].header.paragraphs]
 
     assert parsed.styles["Normal"].font.name == "Times New Roman"
     assert round(parsed.styles["Normal"].font.size.pt) == 10
     assert "WORK EXPERIENCES" in text
-    # PR #12's renamed keys must still reach the page.
     assert "VOLUNTEER & LEADERSHIP EXPERIENCES" in text
     assert "EXTRA MILES" in text
-    assert any("Managed Rp 120M budget." in t for t in text)
-    assert any("1st Place, Galaxy Hackathon" in t for t in text)
+    assert any("BEM UI" in t for t in text)
+    assert any("Managed Rp 120M budget" in t for t in text)
+    assert any("Dharma | Hong Kong SAR | dharma@example.com" in t for t in header_text)
+
+    with ZipFile(BytesIO(result)) as zf:
+        header_xml = zf.read("word/header1.xml").decode("utf-8")
+    assert "Dharma | Hong Kong SAR | dharma@example.com" in header_xml

@@ -17,10 +17,47 @@ MAX_EXPERIENCE_ITEMS = 4
 MAX_LEADERSHIP_ITEMS = 2
 MAX_EXTRA_MILES_ITEMS = 5
 MAX_SKILLS_PER_GROUP = 8
-ACTIVE_VERB_PATTERN = re.compile(
-    r"^(Led|Built|Created|Drove|Delivered|Launched|Managed|Owned|Improved|Increased|Reduced|Optimized|Developed|Designed|Implemented|Generated|Scaled|Coordinated|Executed|Produced|Supported|Analyzed|Streamlined|Boosted|Expanded|Achieved|Negotiated|Spearheaded|Established|Automated|Revamped|Accelerated|Strengthened|Secured|Collaborated|Directed|Facilitated|Resolved|Maintained|Initiated|Presented|Mentored)\b",
-    re.IGNORECASE,
-)
+CURRENT_ROLE_PATTERN = re.compile(r"\b(present|current|now)\b", re.IGNORECASE)
+PRESENT_TENSE_OVERRIDES = {
+    "Achieved": "Achieve",
+    "Analyzed": "Analyze",
+    "Automated": "Automate",
+    "Built": "Build",
+    "Collaborated": "Collaborate",
+    "Coordinated": "Coordinate",
+    "Created": "Create",
+    "Delivered": "Deliver",
+    "Designed": "Design",
+    "Developed": "Develop",
+    "Directed": "Direct",
+    "Drove": "Drive",
+    "Established": "Establish",
+    "Executed": "Execute",
+    "Expanded": "Expand",
+    "Facilitated": "Facilitate",
+    "Generated": "Generate",
+    "Improved": "Improve",
+    "Implemented": "Implement",
+    "Increased": "Increase",
+    "Initiated": "Initiate",
+    "Launched": "Launch",
+    "Led": "Lead",
+    "Maintained": "Maintain",
+    "Managed": "Manage",
+    "Mentored": "Mentor",
+    "Optimized": "Optimize",
+    "Owned": "Own",
+    "Presented": "Present",
+    "Produced": "Produce",
+    "Reduced": "Reduce",
+    "Resolved": "Resolve",
+    "Scaled": "Scale",
+    "Secured": "Secure",
+    "Spearheaded": "Spearhead",
+    "Streamlined": "Streamline",
+    "Strengthened": "Strengthen",
+    "Supported": "Support",
+}
 
 
 def _normalize_phone(phone: str | None) -> str | None:
@@ -50,13 +87,55 @@ def _trim_text(text: str | None, max_chars: int) -> str:
     return trimmed or cleaned[:max_chars].strip()
 
 
-def _ensure_active_verb(bullet: str) -> str:
+def _extract_display_name(source_cv_text: str | None, fallback_full_name: str | None) -> str:
+    for line in str(source_cv_text or "").splitlines():
+        candidate = re.sub(r"\s+", " ", line).strip()
+        if not candidate or len(candidate) > 80:
+            continue
+        if re.search(r"[@|+/]|https?://|www\.", candidate, re.IGNORECASE):
+            continue
+        if sum(ch.isalpha() for ch in candidate) < 3:
+            continue
+        return candidate
+    return str(fallback_full_name or "").strip()
+
+
+def _strip_terminal_period(text: str) -> str:
+    return re.sub(r"\.(?=$)", "", text.strip())
+
+
+def _humanize_bullet(text: str) -> str:
+    cleaned = text.replace("—", ", ").replace("–", ", ")
+    cleaned = re.sub(r"\s*-\s*", ", ", cleaned)
+    cleaned = re.sub(r"\s+,", ",", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,")
+    return _strip_terminal_period(cleaned)
+
+
+def _is_current_period(period: str | None) -> bool:
+    return bool(CURRENT_ROLE_PATTERN.search(str(period or "")))
+
+
+def _to_present_tense(text: str) -> str:
+    parts = text.split(" ", 1)
+    if not parts:
+        return text
+    replacement = PRESENT_TENSE_OVERRIDES.get(parts[0])
+    if not replacement:
+        return text
+    return replacement if len(parts) == 1 else f"{replacement} {parts[1]}"
+
+
+def _normalize_bullet(bullet: str, *, current_role: bool = False) -> str:
     cleaned = re.sub(r"^[\-•\s]+", "", str(bullet or "")).strip()
     if not cleaned:
         return ""
-    if ACTIVE_VERB_PATTERN.match(cleaned):
-        return cleaned
-    return f"Delivered {cleaned[0].lower() + cleaned[1:] if len(cleaned) > 1 else cleaned.lower()}"
+    cleaned = _humanize_bullet(cleaned)
+    if current_role:
+        cleaned = _to_present_tense(cleaned)
+    if cleaned:
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
 
 
 def _prioritize_keywords(items: list[str], keywords: list[str], limit: int) -> list[str]:
@@ -76,7 +155,8 @@ def _prioritize_keywords(items: list[str], keywords: list[str], limit: int) -> l
 def _limit_bullets(items: list[dict] | None, org_key: str) -> list[dict]:
     normalized = []
     for item in items or []:
-        bullets = [_ensure_active_verb(b) for b in item.get("bullets", [])]
+        current_role = _is_current_period(item.get("period"))
+        bullets = [_normalize_bullet(b, current_role=current_role) for b in item.get("bullets", [])]
         bullets = [b for b in bullets if b][:3]
         normalized.append(
             {
@@ -88,6 +168,72 @@ def _limit_bullets(items: list[dict] | None, org_key: str) -> list[dict]:
             }
         )
     return normalized
+
+
+def _normalize_education(items: list[dict] | None) -> list[dict]:
+    normalized = []
+    for item in items or []:
+        bullet_sources = list(item.get("bullets") or [])
+        details = item.get("details")
+        coursework = item.get("coursework")
+        if isinstance(details, list):
+            bullet_sources.extend(details)
+        elif details:
+            bullet_sources.append(str(details))
+        if isinstance(coursework, list):
+            bullet_sources.extend(f"Relevant coursework: {entry}" for entry in coursework)
+        elif coursework:
+            bullet_sources.append(f"Relevant coursework: {coursework}")
+        bullets: list[str] = []
+        for entry in bullet_sources:
+            cleaned = _normalize_bullet(entry)
+            if cleaned:
+                bullets.append(cleaned)
+        normalized.append(
+            {
+                "institution": item.get("institution", ""),
+                "degree": item.get("degree", ""),
+                "gpa": item.get("gpa", ""),
+                "year": item.get("year", ""),
+                "bullets": bullets,
+            }
+        )
+    return normalized
+
+
+def _normalize_additional_info(info: dict | None) -> dict[str, list[str] | str]:
+    rows: dict[str, list[str] | str] = {}
+    for label, value in (info or {}).items():
+        if not value:
+            continue
+        if isinstance(value, list):
+            cleaned = [_strip_terminal_period(str(v).strip()) for v in value if str(v).strip()]
+            if cleaned:
+                rows[str(label)] = cleaned
+        else:
+            cleaned = _strip_terminal_period(str(value).strip())
+            if cleaned:
+                rows[str(label)] = cleaned
+    return rows
+
+
+def _separate_project_like_experience(experience: list[dict], extra_miles: list[str]) -> list[dict]:
+    kept = []
+    for item in experience:
+        title = str(item.get("title") or "")
+        if re.search(r"bangkit by|capstone|project machine learning lead", title, re.IGNORECASE):
+            company = str(item.get("company") or "").strip()
+            period = str(item.get("period") or "").strip()
+            bullets = [str(b).strip() for b in item.get("bullets") or [] if str(b).strip()]
+            summary = " | ".join(part for part in [title, company, period] if part)
+            if bullets:
+                summary = f"{summary}: {'; '.join(bullets)}" if summary else "; ".join(bullets)
+            cleaned = _strip_terminal_period(summary)
+            if cleaned and cleaned not in extra_miles:
+                extra_miles.append(cleaned)
+            continue
+        kept.append(item)
+    return kept
 
 
 def _extract_keywords(job_title: str, company: str, job_description: str) -> list[str]:
@@ -119,8 +265,16 @@ def apply_cv_rules(
     job_title: str = "",
     company: str = "",
     job_description: str = "",
+    source_cv_text: str = "",
 ) -> dict:
     normalized = dict(tailored_data or {})
+
+    display_name = str(normalized.get("display_name") or "").strip() or _extract_display_name(
+        source_cv_text,
+        getattr(user, "full_name", ""),
+    )
+    if display_name:
+        normalized["display_name"] = display_name
 
     contact = dict(normalized.get("contact") or {})
     if not contact.get("email") and user.email:
@@ -140,13 +294,16 @@ def apply_cv_rules(
     normalized["summary"] = _trim_text(normalized.get("summary"), MAX_SUMMARY_CHARS)
     normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")[:MAX_EXPERIENCE_ITEMS]
     normalized["leadership"] = _limit_bullets(normalized.get("leadership"), "organization")[:MAX_LEADERSHIP_ITEMS]
+    normalized["education"] = _normalize_education(normalized.get("education"))
+    normalized["additional_info"] = _normalize_additional_info(normalized.get("additional_info") or {})
 
     extra_miles = []
     for key in ("awards", "projects", "certifications", "extra_miles"):
         for item in normalized.get(key, []) or []:
-            text = str(item).strip()
+            text = _strip_terminal_period(str(item).strip())
             if text and text not in extra_miles:
                 extra_miles.append(text)
+    normalized["experience"] = _separate_project_like_experience(normalized["experience"], extra_miles)
     normalized["extra_miles"] = _prioritize_keywords(extra_miles, keywords, MAX_EXTRA_MILES_ITEMS)
 
     skills = normalized.get("skills") or {}
@@ -201,6 +358,7 @@ async def tailor_cv(
         job_title=job.title,
         company=job.company or "",
         job_description=job.description or "",
+        source_cv_text=cv.raw_text,
     )
 
     docx_bytes = generate_cv_docx(tailored_data, user.full_name)
