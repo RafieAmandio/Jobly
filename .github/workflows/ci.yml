@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jobly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Same libs the app uses in prod; see docker/Dockerfile.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/jobly
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install WeasyPrint system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 libffi-dev libcairo2
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Create schema
+        run: uv run alembic upgrade head
+
+      - name: Run tests
+        run: uv run pytest -q
+
+  deploy:
+    name: deploy to Dokploy
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy deploy
+        # Deliberately a CI step rather than a raw GitHub webhook: a webhook fires
+        # on push regardless of whether the tests then pass. This only runs after
+        # `test` succeeds, so main never auto-deploys a red build.
+        run: |
+          if [ -z "${{ secrets.DOKPLOY_DEPLOY_URL }}" ]; then
+            echo "DOKPLOY_DEPLOY_URL secret is not set; skipping deploy."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${{ secrets.DOKPLOY_DEPLOY_URL }}")
+          echo "Dokploy responded $code"
+          [ "$code" = "200" ] || { echo "Deploy trigger failed."; exit 1; }
