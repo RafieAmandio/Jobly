@@ -56,3 +56,22 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -q
+
+  deploy:
+    name: deploy to Dokploy
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy deploy
+        # Deliberately a CI step rather than a raw GitHub webhook: a webhook fires
+        # on push regardless of whether the tests then pass. This only runs after
+        # `test` succeeds, so main never auto-deploys a red build.
+        run: |
+          if [ -z "${{ secrets.DOKPLOY_DEPLOY_URL }}" ]; then
+            echo "DOKPLOY_DEPLOY_URL secret is not set; skipping deploy."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${{ secrets.DOKPLOY_DEPLOY_URL }}")
+          echo "Dokploy responded $code"
+          [ "$code" = "200" ] || { echo "Deploy trigger failed."; exit 1; }
