@@ -1,5 +1,4 @@
 from io import BytesIO
-from zipfile import ZipFile
 
 from docx import Document
 
@@ -77,11 +76,23 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
 
 
 def test_generate_cover_letter_docx():
-    content = "Dear Hiring Manager,\n\nI am writing to express my interest.\n\nBest regards,\nJohn"
+    content = (
+        "Subject: Application for Software Engineer at Tokopedia\n\n"
+        "Dear Hiring Manager at Tokopedia,\n\n"
+        "I am writing to express my interest in the role.\n\n"
+        "Sincerely,\n\n"
+        "John Doe"
+    )
     result = generate_cover_letter_docx(content, "John Doe")
+    parsed = Document(BytesIO(result))
+    text = [p.text for p in parsed.paragraphs]
+
     assert isinstance(result, bytes)
     assert len(result) > 0
     assert result[:2] == b"PK"
+    assert "Subject: Application for Software Engineer at Tokopedia" in text
+    assert "Dear Hiring Manager at Tokopedia," in text
+    assert "I am writing to express my interest in the role." in text
 
 
 def test_generate_cv_docx_uses_master_cv_format():
