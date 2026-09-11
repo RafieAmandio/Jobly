@@ -72,6 +72,15 @@ jobs:
             echo "DOKPLOY_DEPLOY_URL secret is not set; skipping deploy."
             exit 0
           fi
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${{ secrets.DOKPLOY_DEPLOY_URL }}")
-          echo "Dokploy responded $code"
+          # Dokploy's deploy webhook parses the branch out of a GitHub-shaped push
+          # payload and compares it to the app's configured branch. A bare POST has no
+          # branch, so it answers 301 {"message":"Branch Not Match"} and deploys nothing.
+          body=$(printf '{"ref":"refs/heads/%s"}' "${GITHUB_REF_NAME}")
+          out=$(curl -s -w '\n%{http_code}' -X POST \
+            -H 'content-type: application/json' \
+            -H 'x-github-event: push' \
+            -d "$body" \
+            "${{ secrets.DOKPLOY_DEPLOY_URL }}")
+          code=$(printf '%s' "$out" | tail -n1)
+          echo "Dokploy responded $code: $(printf '%s' "$out" | sed '$d')"
           [ "$code" = "200" ] || { echo "Deploy trigger failed."; exit 1; }
