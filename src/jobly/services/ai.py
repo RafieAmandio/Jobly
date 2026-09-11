@@ -43,37 +43,36 @@ async def tailor_cv_content(
                         "You are an expert CV writer specializing in the Indonesian job market. "
                         "You tailor CVs to match specific job descriptions while keeping the content "
                         "truthful to the candidate's actual experience. Follow these CV formatting rules: "
-                        "personal info should use name, broad-area location only (not full detailed address), "
-                        "phone should be suitable for +62 formatting, and email plus portfolio/link should be "
-                        "kept usable as hyperlinks; work and leadership descriptions must be bullet points only, "
-                        "maximum 3 bullets each, with quantified impact whenever possible; education should "
-                        "highlight achievements/activities briefly; extra achievements can go in an extra-miles "
-                        "style section; skills should be grouped into technical, soft, and tools; the final CV "
-                        "should stay concise and relevant, targeting a maximum of 2 pages in a clean ATS-friendly format.\n\n"
+                        "personal info should use a concise header name exactly as the candidate presents it in the CV, "
+                        "broad-area location only (not full detailed address), phone should be suitable for +62 formatting, "
+                        "and email plus portfolio/link should be kept usable as hyperlinks; work and leadership descriptions "
+                        "must be bullet points only, maximum 3 bullets each; education should preserve GPA, notable courses, "
+                        "and brief achievements when the source CV includes them; additional information should be surfaced when "
+                        "the source CV includes languages, certifications, tests, or other supporting details; the final CV should "
+                        "stay concise and relevant, targeting a maximum of 2 pages in a clean ATS-friendly format.\n\n"
                         "Instructions:\n"
                         "1. Analyze the job description for key requirements, skills, and keywords\n"
                         "2. Rewrite the CV sections to emphasize only the most relevant experience for this role\n"
                         "3. Adjust the professional summary to align with the role and keep it concise\n"
                         "4. Naturally incorporate role-relevant keywords from the job description into summary, experience, leadership, and skills without keyword stuffing\n"
-                        "5. Rephrase bullet points using strong active verbs and quantified achievements\n"
+                        "5. Rephrase bullet points using direct, human-sounding action verbs; avoid AI-sounding filler, avoid em dashes, and avoid decorative phrasing\n"
                         "6. Use only metrics, scope, and data that are already supported by the source CV; never invent numbers or impact\n"
                         "7. Keep all factual information (dates, companies, degrees) unchanged and keep the tone genuine\n"
-                        "8. Extract the candidate's contact details (broad-area location, email, phone, "
-                        "LinkedIn URL or portfolio link) from the CV into the 'contact' object. Omit any field "
-                        "not present in the CV; never invent contact details.\n"
-                        "9. Include a 'leadership' section when the CV contains organizations, committees, "
-                        "volunteering, or campus leadership relevant to the role.\n"
-                        "10. If the CV lists certifications, awards/achievements, or notable "
-                        "projects, include the most relevant ones as short one-line strings for an extra-miles "
-                        "style section. Omit a section entirely if the CV has none.\n"
-                        f"11. Output in {lang_name}\n\n"
+                        "8. If a role is current or the source says present/current, write bullets in present tense; otherwise use past tense\n"
+                        "9. Every bullet must be a fragment, not a full sentence, and must not end with a period\n"
+                        "10. Extract the candidate's contact details (broad-area location, email, phone, LinkedIn URL or portfolio link) from the CV into the 'contact' object. Omit any field not present in the CV; never invent contact details\n"
+                        "11. Include a 'leadership' section when the CV contains organizations, committees, volunteering, or campus leadership relevant to the role\n"
+                        "12. If the CV lists certifications, awards/achievements, notable projects, languages, tests, or supporting details, preserve the most relevant ones in either 'extra_miles' or 'additional_info'\n"
+                        "13. Do not merge academic, bootcamp, capstone, or program project labels into unrelated employment entries. Keep chronology and source context clean\n"
+                        f"14. Output in {lang_name}\n\n"
                         "Output valid JSON with this structure:\n"
-                        '{"contact": {"location": "...", "email": "...", "phone": "...", "portfolio": "...", "linkedin": "..."}, '
+                        '{"display_name": "...", "contact": {"location": "...", "email": "...", "phone": "...", "portfolio": "...", "linkedin": "..."}, '
                         '"summary": "...", "experience": [{"company": "...", "title": "...", '
                         '"period": "...", "bullets": ["..."]}], '
                         '"leadership": [{"organization": "...", "title": "...", "period": "...", "brief": "...", "bullets": ["..."]}], '
-                        '"education": [{"institution": "...", "degree": "...", "year": "...", "details": "..."}], '
+                        '"education": [{"institution": "...", "degree": "...", "gpa": "...", "year": "...", "details": ["..."], "coursework": ["..."]}], '
                         '"extra_miles": ["..."], '
+                        '"additional_info": {"Languages": ["..."], "Tests": ["..."], "Other": ["..."]}, '
                         '"skills": {"technical": ["..."], "soft": ["..."], "tools": ["..."]}}'
                     ),
                 },

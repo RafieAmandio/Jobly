@@ -39,16 +39,29 @@ LIST_SECTIONS = (
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
 
+def _display_name(data: dict, fallback_full_name: str) -> str:
+    return str(data.get("display_name") or fallback_full_name).strip()
+
+
 def _contact_line(contact: dict | None) -> list[str]:
     """Ordered, non-empty contact fields for the centred header line."""
     if not contact:
         return []
     parts = []
-    for key in ("location", "email", "phone", "linkedin"):
+    for key in ("location", "email", "phone", "portfolio", "linkedin"):
         value = contact.get(key)
         if value:
             parts.append(str(value).strip())
     return parts
+
+
+def _header_line(data: dict, fallback_full_name: str) -> str:
+    name = _display_name(data, fallback_full_name)
+    parts = [name] if name else []
+    for part in _contact_line(data.get("contact")):
+        if part not in parts:
+            parts.append(part)
+    return " | ".join(parts)
 
 
 def _split_bold(text: str) -> list[tuple[str, bool]]:
@@ -135,7 +148,7 @@ def _exp_entries(data: dict, key: str) -> list[dict]:
 
 
 def _org_label(exp: dict) -> str:
-    company = (exp.get("company") or "").strip()
+    company = (exp.get("company") or exp.get("organization") or "").strip()
     location = (exp.get("location") or "").strip()
     if company and location:
         return f"**{company}**, {location}"
@@ -162,7 +175,17 @@ def _additional_info(data: dict) -> list[tuple[str, str]]:
                 continue
             text = ", ".join(str(v) for v in value) if isinstance(value, list) else str(value)
             rows.append((str(label), text))
-    if not rows and data.get("skills"):
+    if not rows and isinstance(data.get("skills"), dict):
+        labels = {
+            "technical": "Technical",
+            "soft": "Soft Skills",
+            "tools": "Tools",
+        }
+        for key, label in labels.items():
+            values = [str(v).strip() for v in data["skills"].get(key, []) if str(v).strip()]
+            if values:
+                rows.append((label, ", ".join(values)))
+    elif not rows and data.get("skills"):
         rows.append(("Skills", ", ".join(str(s) for s in data["skills"])))
     return rows
 
@@ -174,10 +197,18 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     doc = Document()
 
     for section in doc.sections:
-        section.top_margin = Inches(0.45)
+        section.top_margin = Inches(0.7)
         section.bottom_margin = Inches(0.45)
         section.left_margin = Inches(0.51)
         section.right_margin = Inches(0.51)
+        header = section.header
+        header_p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        header_p.paragraph_format.space_after = Pt(4)
+        header_run = header_p.add_run(_header_line(data, full_name))
+        header_run.bold = True
+        header_run.font.size = Pt(9.5)
+        _rule(header_p, "bottom")
 
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
@@ -185,25 +216,10 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     style.paragraph_format.space_after = Pt(0)
     style.paragraph_format.line_spacing = 1.19
 
-    name_p = doc.add_paragraph()
-    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(1)
-    name_run = name_p.add_run(full_name)
-    name_run.bold = True
-    name_run.font.size = Pt(12)
-
-    contact_parts = _contact_line(data.get("contact"))
-    if contact_parts:
-        contact_p = doc.add_paragraph()
-        contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(4)
-        contact_p.add_run(" | ".join(contact_parts)).font.size = Pt(10)
-        _rule(contact_p, "bottom")
-
     if data.get("summary"):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_before = Pt(5)
+        p.paragraph_format.space_before = Pt(2)
         _runs(p, data["summary"])
 
     education = _exp_entries(data, "education")
@@ -308,18 +324,26 @@ def generate_cover_letter_docx(
 # CV — PDF (WeasyPrint)
 # --------------------------------------------------------------------------- #
 _CV_CSS = """
-@page { size: A4; margin: 0.5in 0.51in; }
+@page {
+  size: A4;
+  margin: 0.78in 0.51in 0.5in;
+  @top-center { content: element(cv-header); }
+}
 html, body { margin: 0; padding: 0; }
 body { font-family: 'Times New Roman', 'Liberation Serif', Georgia, serif;
        font-size: 10pt; color: #000; line-height: 1.19; }
 p { margin: 0; }
-.name { text-align: center; font-size: 12pt; font-weight: bold; margin: 0 0 4px; }
-.contact { text-align: center; font-size: 10pt; margin: 0 0 14px; }
+.running-header {
+  position: running(cv-header);
+  text-align: center;
+  font-size: 9.5pt;
+  font-weight: bold;
+  border-bottom: 1px solid #888888;
+  padding-bottom: 4px;
+}
 .contact a { color: #0563C1; }
-/* The master's rules stop short of the right text edge — match that inset. */
-.rule { border-top: 1px solid #888888; width: 6.75in; margin: 0 0 0 0.035in; height: 0; }
 .rule.pre-section { margin-top: 12px; }
-.summary { text-align: justify; margin: 4px 0 0; }
+.summary { text-align: justify; margin: 2px 0 0; }
 h2.section { font-size: 12pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
              margin: 4px 0 2px; }
 .entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px; }
@@ -374,6 +398,17 @@ def _contact_html(contact: dict | None) -> str:
     return f"<p class='contact'>{' | '.join(rendered)}</p>"
 
 
+def _header_html(data: dict, full_name: str) -> str:
+    rendered = []
+    for part in _header_line(data, full_name).split(" | "):
+        if part.startswith(("http://", "https://", "www.")):
+            href = part if part.startswith("http") else f"https://{part}"
+            rendered.append(f"<a href='{escape(href)}'>{escape(part)}</a>")
+        else:
+            rendered.append(escape(part))
+    return f"<div class='running-header'>{' | '.join(rendered)}</div>"
+
+
 def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
     try:
         from weasyprint import HTML
@@ -382,9 +417,7 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
             "<html><head><meta charset='utf-8'><style>",
             _CV_CSS,
             "</style></head><body>",
-            f"<p class='name'>{escape(full_name)}</p>",
-            _contact_html(data.get("contact")),
-            _RULE,
+            _header_html(data, full_name),
         ]
 
         if data.get("summary"):
