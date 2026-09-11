@@ -14,15 +14,29 @@ router = Router()
 router.message.filter(IsAdmin())
 
 
+async def _resolve_user(session: AsyncSession, token: str) -> User | None:
+    """Accept either a numeric telegram_id or an @username.
+
+    Admins reach for the @handle they can actually see in Telegram; the numeric id is not
+    visible anywhere in the UI. Both admin lookups go through here so they stay in step.
+    """
+    from jobly.services.user import get_user_by_telegram_id, get_user_by_username
+
+    token = token.strip()
+    if token.lstrip("-").isdigit():
+        return await get_user_by_telegram_id(session, int(token))
+    return await get_user_by_username(session, token)
+
+
 @router.message(Command("admin"))
 async def cmd_admin(message: Message) -> None:
     await message.answer(
         "🔧 Admin Commands:\n\n"
         "/stats — User & revenue stats\n"
         "/scraper_health — Check scraper status\n"
-        "/give_credits <telegram_id> <amount> — Add credits\n"
+        "/give_credits <@username|telegram_id> <amount> — Add credits\n"
         "/broadcast <message> — Send to all users\n"
-        "/user_info <telegram_id> — View user details"
+        "/user_info <@username|telegram_id> — View user details"
     )
 
 
@@ -88,22 +102,20 @@ async def cmd_scraper_health(message: Message) -> None:
 async def cmd_give_credits(message: Message, session: AsyncSession) -> None:
     parts = message.text.split()
     if len(parts) != 3:
-        await message.answer("Usage: /give_credits <telegram_id> <amount>")
+        await message.answer("Usage: /give_credits <@username|telegram_id> <amount>")
         return
 
     try:
-        telegram_id = int(parts[1])
         amount = int(parts[2])
     except ValueError:
-        await message.answer("Invalid telegram_id or amount.")
+        await message.answer("Invalid amount.")
         return
 
-    from jobly.services.user import get_user_by_telegram_id
     from jobly.services.credit import add_credit
 
-    user = await get_user_by_telegram_id(session, telegram_id)
+    user = await _resolve_user(session, parts[1])
     if not user:
-        await message.answer(f"User {telegram_id} not found.")
+        await message.answer(f"User {parts[1]} not found.")
         return
 
     new_balance = await add_credit(
@@ -117,20 +129,12 @@ async def cmd_give_credits(message: Message, session: AsyncSession) -> None:
 async def cmd_user_info(message: Message, session: AsyncSession) -> None:
     parts = message.text.split()
     if len(parts) != 2:
-        await message.answer("Usage: /user_info <telegram_id>")
+        await message.answer("Usage: /user_info <@username|telegram_id>")
         return
 
-    try:
-        telegram_id = int(parts[1])
-    except ValueError:
-        await message.answer("Invalid telegram_id.")
-        return
-
-    from jobly.services.user import get_user_by_telegram_id
-
-    user = await get_user_by_telegram_id(session, telegram_id)
+    user = await _resolve_user(session, parts[1])
     if not user:
-        await message.answer(f"User {telegram_id} not found.")
+        await message.answer(f"User {parts[1]} not found.")
         return
 
     tailors = (

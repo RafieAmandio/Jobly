@@ -1,7 +1,7 @@
 import secrets
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,16 @@ async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int) -> Us
         .options(selectinload(User.preferences))
     )
     return result.scalar_one_or_none()
+
+
+async def get_user_by_username(session: AsyncSession, username: str) -> User | None:
+    """Look a user up by Telegram @username, case-insensitively. A leading @ is optional."""
+    result = await session.execute(
+        select(User)
+        .where(func.lower(User.telegram_username) == username.lstrip("@").lower())
+        .options(selectinload(User.preferences))
+    )
+    return result.scalars().first()
 
 
 async def create_user(
