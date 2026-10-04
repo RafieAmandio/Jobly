@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from aiogram import F, Router
@@ -9,8 +10,9 @@ from jobly.i18n.strings import t
 from jobly.models.cv import CV
 from jobly.models.job import Job
 from jobly.models.user import User
-from jobly.services.credit import deduct_credit
+from jobly.services.credit import add_credit, deduct_credit
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 
@@ -50,13 +52,18 @@ async def on_tailor_cv(
 
     from jobly.services.cv_tailor import tailor_cv
 
-    result = await tailor_cv(
-        session=session,
-        user=db_user,
-        cv=cv,
-        job=job,
-        lang=lang,
-    )
+    try:
+        result = await tailor_cv(
+            session=session,
+            user=db_user,
+            cv=cv,
+            job=job,
+            lang=lang,
+        )
+    except Exception:
+        # e.g. the AI provider returning 429; fall through to the refund below
+        logger.exception("tailor_cv failed for job %s", job.id)
+        result = None
 
     if result:
         if result.get("docx"):
@@ -69,7 +76,13 @@ async def on_tailor_cv(
             )
         await callback.message.answer(t("tailoring_complete", lang))
     else:
-        error = "Gagal membuat CV." if lang == "id" else "Failed to generate CV."
+        # The credit was taken up front; a failed generation must not cost the user.
+        await add_credit(session, db_user, 1, "refund", str(job.id), f"Refund, CV tailor failed: {job.title}")
+        error = (
+            "Gagal membuat CV. Kredit kamu sudah dikembalikan."
+            if lang == "id"
+            else "Failed to generate CV. Your credit has been refunded."
+        )
         await callback.message.answer(error)
 
 
@@ -109,13 +122,18 @@ async def on_cover_letter(
 
     from jobly.services.cover_letter import generate_cover_letter
 
-    result = await generate_cover_letter(
-        session=session,
-        user=db_user,
-        cv=cv,
-        job=job,
-        lang=lang,
-    )
+    try:
+        result = await generate_cover_letter(
+            session=session,
+            user=db_user,
+            cv=cv,
+            job=job,
+            lang=lang,
+        )
+    except Exception:
+        # e.g. the AI provider returning 429; fall through to the refund below
+        logger.exception("generate_cover_letter failed for job %s", job.id)
+        result = None
 
     if result:
         if result.get("docx"):
@@ -128,5 +146,12 @@ async def on_cover_letter(
             )
         await callback.message.answer(t("cover_letter_complete", lang))
     else:
-        error = "Gagal membuat cover letter." if lang == "id" else "Failed to generate cover letter."
+        await add_credit(
+            session, db_user, 1, "refund", str(job.id), f"Refund, cover letter failed: {job.title}"
+        )
+        error = (
+            "Gagal membuat cover letter. Kredit kamu sudah dikembalikan."
+            if lang == "id"
+            else "Failed to generate cover letter. Your credit has been refunded."
+        )
         await callback.message.answer(error)

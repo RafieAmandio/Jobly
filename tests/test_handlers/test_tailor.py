@@ -79,3 +79,34 @@ async def test_tailor_no_cv(seeded_session, test_user, test_job):
     cb.message.answer.assert_called()
     call_text = cb.message.answer.call_args[0][0]
     assert "upload" in call_text.lower() or "no cv" in call_text.lower() or "belum upload" in call_text.lower()
+
+
+@pytest.mark.asyncio
+@patch("jobly.services.cv_tailor.tailor_cv_content")
+async def test_tailor_cv_failure_refunds_credit(mock_ai, seeded_session, test_user, test_job, test_cv):
+    """The credit is taken up front; an AI provider failure must give it back."""
+    mock_ai.side_effect = RuntimeError("429 insufficient balance")
+    bot = MockBot()
+    cb = make_callback(
+        data=f"tailor:{test_job.id}", user_id=test_user.telegram_id, bot=bot
+    )
+
+    await on_tailor_cv(cb, seeded_session, test_user, "en")
+
+    assert test_user.credit_balance == 3
+    assert "refunded" in cb.message.answer.call_args[0][0]
+
+
+@pytest.mark.asyncio
+@patch("jobly.services.cover_letter.generate_cover_letter_content")
+async def test_cover_letter_failure_refunds_credit(mock_ai, seeded_session, test_user, test_job, test_cv):
+    mock_ai.side_effect = RuntimeError("429 insufficient balance")
+    bot = MockBot()
+    cb = make_callback(
+        data=f"cover:{test_job.id}", user_id=test_user.telegram_id, bot=bot
+    )
+
+    await on_cover_letter(cb, seeded_session, test_user, "en")
+
+    assert test_user.credit_balance == 3
+    assert "refunded" in cb.message.answer.call_args[0][0]
