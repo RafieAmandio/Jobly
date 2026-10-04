@@ -14,6 +14,10 @@ def _extract_json(text: str) -> str:
     m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
     return m.group(1).strip() if m else text.strip()
 
+# kimi-k2.6 thinks by default: ~44s vs ~6s for a CV with the same output.
+# With thinking off Moonshot only accepts temperature 0.6.
+_FAST = {"temperature": 0.6, "extra_body": {"thinking": {"type": "disabled"}}}
+
 _client: AsyncOpenAI | None = None
 
 
@@ -85,7 +89,7 @@ async def tailor_cv_content(
                     ),
                 },
             ],
-            temperature=1,
+            **_FAST,
         )
         content = response.choices[0].message.content
         return json.loads(_extract_json(content))
@@ -129,7 +133,7 @@ async def generate_cover_letter_content(
                     ),
                 },
             ],
-            temperature=1,
+            **_FAST,
         )
         return response.choices[0].message.content
     except Exception:
@@ -164,7 +168,7 @@ async def classify_job(title: str, description: str) -> list[dict]:
                     "content": f"Job Title: {title}\n\nDescription:\n{description[:2000]}",
                 },
             ],
-            temperature=1,
+            **_FAST,
         )
         content = response.choices[0].message.content
         data = json.loads(_extract_json(content))
