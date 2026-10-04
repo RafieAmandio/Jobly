@@ -3,7 +3,11 @@ from zipfile import ZipFile
 
 from docx import Document
 
-from jobly.services.doc_generator import generate_cover_letter_docx, generate_cv_docx
+from jobly.services.doc_generator import (
+    generate_cover_letter_docx,
+    generate_cover_letter_pdf,
+    generate_cv_docx,
+)
 
 
 def test_generate_cv_docx():
@@ -87,7 +91,10 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
     assert result[:2] == b"PK"
     assert any("Rafie | Jakarta, Indonesia | rafie@example.com" in text for text in header_text)
     assert any("3.85/4.00" in text for text in body_text)
-    assert any("Relevant coursework: Distributed Systems, Machine Learning" in text for text in body_text)
+    assert any(
+        "Relevant coursework: Distributed Systems, Machine Learning" in text
+        for text in body_text
+    )
     assert "ADDITIONAL INFORMATION" in body_text
     assert any("Languages: Indonesian, English" in text for text in body_text)
     assert any("Tests: IELTS 7.0" in text for text in body_text)
@@ -95,10 +102,26 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
 
 def test_generate_cover_letter_docx():
     content = "Dear Hiring Manager,\n\nI am writing to express my interest.\n\nBest regards,\nJohn"
-    result = generate_cover_letter_docx(content, "John Doe")
+    contact = {"email": "john@example.com", "phone": "+62 812 0000 0000"}
+    result = generate_cover_letter_docx(content, "John Doe", contact)
+    parsed = Document(BytesIO(result))
+    header_text = [p.text for p in parsed.sections[0].header.paragraphs]
+
     assert isinstance(result, bytes)
     assert len(result) > 0
     assert result[:2] == b"PK"
+    assert parsed.styles["Normal"].font.name == "Times New Roman"
+    assert round(parsed.styles["Normal"].font.size.pt) == 10
+    assert any("John Doe | john@example.com | +62 812 0000 0000" in text for text in header_text)
+
+
+def test_generate_cover_letter_pdf():
+    content = "Dear Hiring Manager,\n\nI am writing to express my interest.\n\nBest regards,\nJohn"
+    contact = {"email": "john@example.com", "phone": "+62 812 0000 0000"}
+    result = generate_cover_letter_pdf(content, "John Doe", contact)
+
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF")
 
 
 def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
