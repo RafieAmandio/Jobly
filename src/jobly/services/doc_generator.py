@@ -239,7 +239,10 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
         for bullet in edu.get("bullets") or []:
             _bullet(doc, bullet)
 
-    for key, heading in (("experience", "Work Experiences"), (_volunteer_key(data), "Volunteer & Leadership Experiences")):
+    for key, heading in (
+        ("experience", "Work Experiences"),
+        (_volunteer_key(data), "Volunteer & Leadership Experiences"),
+    ):
         entries = _exp_entries(data, key)
         if not entries:
             continue
@@ -281,38 +284,33 @@ def generate_cover_letter_docx(
 ) -> bytes:
     doc = Document()
 
+    # Match the CV renderer exactly so CV and cover letter feel like one set.
     for section in doc.sections:
-        section.top_margin = Inches(0.8)
-        section.bottom_margin = Inches(0.8)
-        section.left_margin = Inches(0.9)
-        section.right_margin = Inches(0.9)
+        section.top_margin = Inches(0.7)
+        section.bottom_margin = Inches(0.45)
+        section.left_margin = Inches(0.51)
+        section.right_margin = Inches(0.51)
+        header = section.header
+        header_p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        header_p.paragraph_format.space_after = Pt(4)
+        header_run = header_p.add_run(_header_line({"contact": contact}, full_name))
+        header_run.bold = True
+        header_run.font.size = Pt(9.5)
+        _rule(header_p, "bottom")
 
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
-    style.font.size = Pt(11)
-    style.paragraph_format.line_spacing = 1.15
-
-    name_p = doc.add_paragraph()
-    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(1)
-    name_run = name_p.add_run(full_name)
-    name_run.bold = True
-    name_run.font.size = Pt(15)
-
-    contact_parts = _contact_line(contact)
-    if contact_parts:
-        contact_p = doc.add_paragraph()
-        contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(10)
-        contact_p.add_run(" | ".join(contact_parts)).font.size = Pt(10)
-        _rule(contact_p, "bottom")
+    style.font.size = Pt(10)
+    style.paragraph_format.space_after = Pt(0)
+    style.paragraph_format.line_spacing = 1.19
 
     for paragraph in content.split("\n\n"):
         paragraph = paragraph.strip()
         if paragraph:
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.space_after = Pt(8)
+            p.paragraph_format.space_after = Pt(6)
             _runs(p, paragraph)
 
     buffer = io.BytesIO()
@@ -346,7 +344,8 @@ p { margin: 0; }
 .summary { text-align: justify; margin: 2px 0 0; }
 h2.section { font-size: 12pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
              margin: 4px 0 2px; }
-.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px; }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline;
+              margin-top: 3px; }
 .entry-org { font-weight: normal; }
 .entry-period { white-space: nowrap; padding-left: 14px; }
 .entry-role { font-style: italic; margin-bottom: 1px; }
@@ -485,17 +484,21 @@ def generate_cover_letter_pdf(
             f"<p>{_inline(p.strip())}</p>" for p in content.split("\n\n") if p.strip()
         )
         css = (
-            "@page { size: A4; margin: 0.8in 0.9in; }"
-            "body { font-family: 'Times New Roman', Georgia, serif; font-size: 11pt; color: #000; line-height: 1.5; }"
-            ".name { text-align: center; font-size: 15pt; font-weight: bold; margin: 0 0 1px; }"
-            ".contact { text-align: center; font-size: 10pt; margin: 0 0 14px; padding-bottom: 4px; border-bottom: 1px solid #999; }"
-            "p { margin-bottom: 10px; text-align: justify; }"
+            "@page { size: A4; margin: 0.78in 0.51in 0.5in; "
+            "@top-center { content: element(cv-header); } }"
+            "html, body { margin: 0; padding: 0; }"
+            "body { font-family: 'Times New Roman', 'Liberation Serif', Georgia, serif; "
+            "font-size: 10pt; color: #000; line-height: 1.19; }"
+            ".running-header { position: running(cv-header); text-align: center; "
+            "font-size: 9.5pt; font-weight: bold; border-bottom: 1px solid #888888; "
+            "padding-bottom: 4px; }"
+            ".contact a { color: #0563C1; }"
+            "p { margin: 0 0 6pt; text-align: justify; }"
         )
         html_content = (
             "<html><head><meta charset='utf-8'><style>"
             f"{css}</style></head><body>"
-            f"<p class='name'>{escape(full_name)}</p>"
-            f"{_contact_html(contact)}"
+            f"{_header_html({'contact': contact}, full_name)}"
             f"{paragraphs}"
             "</body></html>"
         )
