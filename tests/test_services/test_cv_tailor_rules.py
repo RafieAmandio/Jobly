@@ -158,10 +158,11 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
 
     assert normalized["summary"].endswith(".")
     assert not normalized["summary"].endswith("remote")
+    assert normalized["summary"].count(".") == 3
     assert normalized["contact"]["location"] == "Hong Kong SAR"
     assert "phone" not in normalized["contact"]
     assert normalized["education"][0]["bullets"] == [
-        "Dean's List 2020, 2021, 2022, 2023, 2024 (Top 15%)"
+        "Dean's List Ranges: 2020-2021, 2022-2023, 2023-24 (Top 15%)"
     ]
     assert normalized["additional_info"] == {
         "Languages": [

@@ -57,7 +57,7 @@ async def tailor_cv_content(
                         "Instructions:\n"
                         "1. Analyze the job description for key requirements, skills, and keywords\n"
                         "2. Rewrite the CV sections to emphasize only the most relevant experience for this role\n"
-                        "3. Adjust the professional summary to align with the role and keep it concise\n"
+                        "3. Adjust the professional summary to align with the role as exactly three complete sentences\n"
                         "4. Naturally incorporate role-relevant keywords from the job description into summary, experience, leadership, and skills without keyword stuffing\n"
                         "5. Rephrase bullet points using direct, human-sounding action verbs; avoid AI-sounding filler, avoid em dashes, and avoid decorative phrasing\n"
                         "6. Use only metrics, scope, and data that are already supported by the source CV; never invent numbers or impact\n"
