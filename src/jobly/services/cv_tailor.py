@@ -12,7 +12,7 @@ from jobly.services.doc_generator import generate_cv_docx, generate_cv_pdf
 
 logger = logging.getLogger(__name__)
 
-MAX_SUMMARY_CHARS = 450
+MAX_SUMMARY_CHARS = 650
 MAX_EXPERIENCE_ITEMS = 4
 MAX_LEADERSHIP_ITEMS = 2
 MAX_EXTRA_MILES_ITEMS = 5
@@ -91,9 +91,18 @@ def _trim_text(text: str | None, max_chars: int) -> str:
 
 
 def _trim_to_sentence(text: str | None, max_chars: int) -> str:
-    cleaned = _trim_text(text, max_chars)
-    if len(str(text or "").strip()) <= max_chars:
-        return cleaned
+    source = re.sub(r"\s+", " ", str(text or "").strip())
+    if not source:
+        return ""
+    sentences = re.findall(r"[^.!?]+[.!?]", source)
+    if sentences:
+        selected = " ".join(s.strip() for s in sentences[:3])
+        while len(selected) > max_chars and len(sentences) > 1:
+            sentences = sentences[:-1]
+            selected = " ".join(s.strip() for s in sentences[:3])
+        if len(selected) <= max_chars:
+            return selected
+    cleaned = _trim_text(source, max_chars)
     sentence_end = max(cleaned.rfind("."), cleaned.rfind("!"), cleaned.rfind("?"))
     if sentence_end >= max_chars * 0.45:
         return cleaned[: sentence_end + 1].strip()
@@ -102,7 +111,7 @@ def _trim_to_sentence(text: str | None, max_chars: int) -> str:
 
 def _dedupe_repeated_years(text: str) -> str:
     years = re.findall(r"\b(?:19|20)\d{2}\b", text)
-    if len(years) < 2 or len(years) == len(set(years)):
+    if "Ranges:" in text or len(years) < 2 or len(years) == len(set(years)):
         return text
 
     seen: set[str] = set()
@@ -119,6 +128,38 @@ def _dedupe_repeated_years(text: str) -> str:
     cleaned = re.sub(r",\s+(?=\()", " ", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     return cleaned.strip(" ,")
+
+
+def _format_year_range(start: str, end: str, *, shorten_end: bool = False) -> str:
+    if shorten_end and start[:2] == end[:2]:
+        return f"{start}-{end[2:]}"
+    return f"{start}-{end}"
+
+
+def _normalize_deans_list_ranges(text: str) -> str:
+    if not re.search(r"Dean'?s List", text, re.IGNORECASE):
+        return text
+    years = re.findall(r"\b(?:19|20)\d{2}\b", text)
+    if len(years) < 2:
+        return text
+    ranges = []
+    for index in range(0, len(years) - 1, 2):
+        ranges.append(
+            _format_year_range(
+                years[index],
+                years[index + 1],
+                shorten_end=index >= len(years) - 2,
+            )
+        )
+    if len(years) % 2:
+        ranges.append(years[-1])
+    replacement = f"Ranges: {', '.join(ranges)}"
+    return re.sub(
+        r"\b(?:19|20)\d{2}\b(?:\s*,\s*\b(?:19|20)\d{2}\b)+",
+        replacement,
+        text,
+        count=1,
+    )
 
 
 def _extract_display_name(source_cv_text: str | None, fallback_full_name: str | None) -> str:
@@ -165,6 +206,7 @@ def _normalize_bullet(bullet: str, *, current_role: bool = False) -> str:
     if not cleaned:
         return ""
     cleaned = _humanize_bullet(cleaned)
+    cleaned = _normalize_deans_list_ranges(cleaned)
     cleaned = _dedupe_repeated_years(cleaned)
     if current_role:
         cleaned = _to_present_tense(cleaned)
