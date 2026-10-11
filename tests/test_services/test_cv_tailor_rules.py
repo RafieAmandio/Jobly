@@ -122,3 +122,50 @@ def test_apply_cv_rules_uses_present_tense_for_current_roles_and_moves_project_r
     ]
     assert len(normalized["experience"]) == 1
     assert any("Project Machine Learning Lead" in item for item in normalized["extra_miles"])
+
+
+def test_apply_cv_rules_cleans_tailored_cv_regressions():
+    user = SimpleNamespace(email="dharma@example.com", phone="08123456789", full_name="Dharma Setiawan")
+    data = {
+        "contact": {
+            "location": "Hong Kong SAR / Indonesia",
+            "email": "dharma@example.com",
+            "phone": "+628****6021",
+            "linkedin": "https://linkedin.com/in/dharma-setiawan",
+        },
+        "summary": (
+            "Detail-oriented data professional with bilingual Indonesian-English proficiency. "
+            "Strong analytical foundation in data science. "
+            "Experienced in remote content evaluation, QA, rubric-based workflows, "
+            "and root cause analysis across financial services and technology projects. "
+        ) * 4,
+        "education": [
+            {
+                "institution": "CUHK Shenzhen",
+                "degree": "BSc Data Science",
+                "year": "2020 - 2024",
+                "bullets": ["Dean's List 2020, 2021, 2022, 2023, 2023, 2024 (Top 15%)"],
+            }
+        ],
+        "additional_info": {
+            "Languages": ["Indonesian: Professional", "English: Professional (IELTS 7, SAT 1290)"],
+            "Tests": ["IELTS 7, SAT 1290"],
+        },
+        "skills": {"technical": [], "soft": [], "tools": []},
+    }
+
+    normalized = apply_cv_rules(data, user)
+
+    assert normalized["summary"].endswith(".")
+    assert not normalized["summary"].endswith("remote")
+    assert normalized["contact"]["location"] == "Hong Kong SAR"
+    assert "phone" not in normalized["contact"]
+    assert normalized["education"][0]["bullets"] == [
+        "Dean's List 2020, 2021, 2022, 2023, 2024 (Top 15%)"
+    ]
+    assert normalized["additional_info"] == {
+        "Languages": [
+            "Indonesian: Professional",
+            "English: Professional (IELTS 7, SAT 1290)",
+        ]
+    }
