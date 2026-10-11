@@ -49,10 +49,15 @@ def _contact_line(contact: dict | None) -> list[str]:
     if not contact:
         return []
     parts = []
+    seen = set()
     for key in ("location", "email", "phone", "portfolio", "linkedin"):
         value = contact.get(key)
         if value:
-            parts.append(str(value).strip())
+            text = str(value).strip()
+            normalized = text.rstrip("/").lower()
+            if normalized not in seen:
+                parts.append(text)
+                seen.add(normalized)
     return parts
 
 
@@ -148,10 +153,12 @@ def _hyperlink_run(
 
 def _header_runs(paragraph, data: dict, fallback_full_name: str) -> None:
     name = _display_name(data, fallback_full_name)
-    parts = [name] if name else []
-    for part in _contact_line(data.get("contact")):
-        if part not in parts:
-            parts.append(part)
+    if name:
+        run = paragraph.add_run(name)
+        run.bold = True
+        run.font.size = Pt(16)
+        run.add_break()
+    parts = _contact_line(data.get("contact"))
     for index, part in enumerate(parts):
         if index:
             sep = paragraph.add_run(" | ")
@@ -394,11 +401,12 @@ p { margin: 0; }
 .running-header {
   position: running(cv-header);
   text-align: center;
-  font-size: 9.5pt;
   font-weight: bold;
   border-bottom: 1px solid #888888;
   padding-bottom: 4px;
 }
+.header-name { font-size: 16pt; line-height: 1.1; }
+.header-contact { font-size: 9.5pt; line-height: 1.15; }
 .contact a { color: #0563C1; }
 .rule.pre-section { margin-top: 12px; break-after: avoid; page-break-after: avoid; }
 .summary { text-align: justify; margin: 2px 0 0; }
@@ -459,14 +467,20 @@ def _contact_html(contact: dict | None) -> str:
 
 
 def _header_html(data: dict, full_name: str) -> str:
+    name = _display_name(data, full_name)
     rendered = []
-    for part in _header_line(data, full_name).split(" | "):
+    for part in _contact_line(data.get("contact")):
         href = _href_for_part(part)
         if href:
             rendered.append(f"<a href='{escape(href)}'>{escape(part)}</a>")
         else:
             rendered.append(escape(part))
-    return f"<div class='running-header'>{' | '.join(rendered)}</div>"
+    return (
+        "<div class='running-header'>"
+        f"<div class='header-name'>{escape(name)}</div>"
+        f"<div class='header-contact'>{' | '.join(rendered)}</div>"
+        "</div>"
+    )
 
 
 def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:

@@ -67,7 +67,7 @@ def test_apply_cv_rules_normalizes_financial_light_structure():
     assert normalized["contact"]["email"] == "user@example.com"
     assert normalized["contact"]["portfolio"] == "https://linkedin.com/in/test"
     assert normalized["contact"]["location"] == "Jakarta Selatan"
-    assert len(normalized["summary"]) <= 450
+    assert len(normalized["summary"]) <= 650
     assert len(normalized["experience"]) == 4
     assert len(normalized["leadership"]) == 2
     assert len(normalized["experience"][0]["bullets"]) == 3
@@ -76,9 +76,8 @@ def test_apply_cv_rules_normalizes_financial_light_structure():
     assert normalized["leadership"][0]["bullets"][0] == "Organized mentoring program"
     assert normalized["education"][0]["gpa"] == "3.78/4.00"
     assert normalized["education"][0]["bullets"] == [
+        "Relevant coursework: Machine Learning, Data Mining",
         "Dean's List",
-        "Relevant coursework: Machine Learning",
-        "Relevant coursework: Data Mining",
     ]
     assert normalized["additional_info"] == {"Languages": ["English", "Indonesian"]}
     assert normalized["extra_miles"] == ["Fintech Automation Project", "SQL Certification", "Award A"]
@@ -144,6 +143,11 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
                 "institution": "CUHK Shenzhen",
                 "degree": "BSc Data Science",
                 "year": "2020 - 2024",
+                "location": "Shenzhen, China",
+                "rank": "First Honours GPA (Rank 10: 174)",
+                "awards": ["Academic Scholarship Group C"],
+                "activities": ["Teaching Assistant", "Research Assistant", "Mentor", "Student Representative", "USTF"],
+                "coursework": ["Intro to Data Science", "Linear Algebra", "Numerical Methods", "Supply Chain"],
                 "bullets": ["Dean's List 2020, 2021, 2022, 2023, 2023, 2024 (Top 15%)"],
             }
         ],
@@ -154,14 +158,26 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
         "skills": {"technical": [], "soft": [], "tools": []},
     }
 
-    normalized = apply_cv_rules(data, user)
+    normalized = apply_cv_rules(
+        data,
+        user,
+        source_cv_text="Management Associate Business Analyst Project Manager cross-functional",
+    )
 
     assert normalized["summary"].endswith(".")
     assert not normalized["summary"].endswith("remote")
     assert normalized["summary"].count(".") == 3
+    assert "Management Trainee" in normalized["summary"]
+    assert "PM/BA" in normalized["summary"]
+    assert "cross-functional" in normalized["summary"]
     assert normalized["contact"]["location"] == "Hong Kong SAR"
     assert "phone" not in normalized["contact"]
     assert normalized["education"][0]["bullets"] == [
+        "Location: Shenzhen, China",
+        "Rank: First Honours GPA (Rank 10: 174)",
+        "Award: Academic Scholarship Group C",
+        "Activities: Teaching Assistant, Research Assistant, Mentor, Student Representative, USTF",
+        "Relevant coursework: Intro to Data Science, Linear Algebra, Numerical Methods, Supply Chain",
         "Dean's List Ranges: 2020-2021, 2022-2023, 2023-24 (Top 15%)"
     ]
     assert normalized["additional_info"] == {

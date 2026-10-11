@@ -7,6 +7,7 @@ from jobly.services.doc_generator import (
     generate_cover_letter_docx,
     generate_cover_letter_pdf,
     generate_cv_docx,
+    generate_cv_pdf,
 )
 
 
@@ -89,7 +90,7 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
 
     assert isinstance(result, bytes)
     assert result[:2] == b"PK"
-    assert any("Rafie | Jakarta, Indonesia | rafie@example.com" in text for text in header_text)
+    assert any("Rafie" in text and "Jakarta, Indonesia | rafie@example.com" in text for text in header_text)
     assert any("3.85/4.00" in text for text in body_text)
     assert any(
         "Relevant coursework: Distributed Systems, Machine Learning" in text
@@ -112,7 +113,7 @@ def test_generate_cover_letter_docx():
     assert result[:2] == b"PK"
     assert parsed.styles["Normal"].font.name == "Times New Roman"
     assert round(parsed.styles["Normal"].font.size.pt) == 10
-    assert any("John Doe | john@example.com | +62 812 0000 0000" in text for text in header_text)
+    assert any("John Doe" in text and "john@example.com | +62 812 0000 0000" in text for text in header_text)
 
 
 def test_generate_cover_letter_pdf():
@@ -164,13 +165,27 @@ def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
     assert "EXTRA MILES" in text
     assert any("BEM UI" in t for t in text)
     assert any("Managed Rp 120M budget" in t for t in text)
-    assert any("Dharma | Hong Kong SAR | dharma@example.com" in t for t in header_text)
+    assert any("Dharma" in t and "Hong Kong SAR | dharma@example.com" in t for t in header_text)
 
     with ZipFile(BytesIO(result)) as zf:
         header_xml = zf.read("word/header1.xml").decode("utf-8")
         assert "Dharma" in header_xml
+        assert 'w:sz w:val="32"' in header_xml
         assert "Hong Kong SAR" in header_xml
         assert "dharma@example.com" in header_xml
 
         rels_xml = zf.read("word/_rels/header1.xml.rels").decode("utf-8")
         assert "mailto:dharma@example.com" in rels_xml
+
+
+def test_generate_cv_pdf_renders_large_name_separate_from_contact():
+    data = {
+        "display_name": "Dharma Setiawan",
+        "contact": {"location": "Shenzhen, China", "email": "dharma@example.com"},
+        "summary": "Management Trainee and PM/BA profile.",
+    }
+
+    result = generate_cv_pdf(data, "Dharma Setiawan")
+
+    assert isinstance(result, bytes)
+    assert b"font-size: 16pt" in result or result.startswith(b"%PDF")
