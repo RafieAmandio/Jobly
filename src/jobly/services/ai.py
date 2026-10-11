@@ -57,7 +57,7 @@ async def tailor_cv_content(
                         "Instructions:\n"
                         "1. Analyze the job description for key requirements, skills, and keywords\n"
                         "2. Rewrite the CV sections to emphasize only the most relevant experience for this role\n"
-                        "3. Adjust the professional summary to align with the role as exactly three complete sentences\n"
+                        "3. Adjust the professional summary to align with the role as exactly three complete sentences. Preserve broad positioning from the source CV, especially Management Trainee / PM / BA / cross-functional experience, and do not collapse it into a narrow data/QA/content-evaluation profile unless the source CV only supports that\n"
                         "4. Naturally incorporate role-relevant keywords from the job description into summary, experience, leadership, and skills without keyword stuffing\n"
                         "5. Rephrase bullet points using direct, human-sounding action verbs; avoid AI-sounding filler, avoid em dashes, and avoid decorative phrasing\n"
                         "6. Use only metrics, scope, and data that are already supported by the source CV; never invent numbers or impact\n"
@@ -67,14 +67,15 @@ async def tailor_cv_content(
                         "10. Extract the candidate's contact details (broad-area location, email, phone, LinkedIn URL or portfolio link) from the CV into the 'contact' object. Omit any field not present in the CV; never invent contact details. Omit masked/incomplete phone numbers and use one broad location only, not combined multi-country strings\n"
                         "11. Include a 'leadership' section when the CV contains organizations, committees, volunteering, or campus leadership relevant to the role\n"
                         "12. If the CV lists certifications, awards/achievements, notable projects, languages, tests, or supporting details, preserve the most relevant ones in either 'extra_miles' or 'additional_info'. Do not repeat the same test score in both Languages and Tests\n"
-                        "13. Do not merge academic, bootcamp, capstone, or program project labels into unrelated employment entries. Keep chronology and source context clean\n"
-                        f"14. Output in {lang_name}\n\n"
+                        "13. In education, keep coursework as one single comma-separated line, not one bullet per course. Preserve education location, rank, scholarships/awards, and activities when present\n"
+                        "14. Do not merge academic, bootcamp, capstone, or program project labels into unrelated employment entries. Keep chronology and source context clean\n"
+                        f"15. Output in {lang_name}\n\n"
                         "Output valid JSON with this structure:\n"
                         '{"display_name": "...", "contact": {"location": "...", "email": "...", "phone": "...", "portfolio": "...", "linkedin": "..."}, '
                         '"summary": "...", "experience": [{"company": "...", "title": "...", '
                         '"period": "...", "bullets": ["..."]}], '
                         '"leadership": [{"organization": "...", "title": "...", "period": "...", "brief": "...", "bullets": ["..."]}], '
-                        '"education": [{"institution": "...", "degree": "...", "gpa": "...", "year": "...", "details": ["..."], "coursework": ["..."]}], '
+                        '"education": [{"institution": "...", "degree": "...", "gpa": "...", "year": "...", "location": "...", "rank": "...", "awards": ["..."], "activities": ["..."], "details": ["..."], "coursework": ["..."]}], '
                         '"extra_miles": ["..."], '
                         '"additional_info": {"Languages": ["..."], "Tests": ["..."], "Other": ["..."]}, '
                         '"skills": {"technical": ["..."], "soft": ["..."], "tools": ["..."]}}'

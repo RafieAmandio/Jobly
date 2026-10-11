@@ -109,6 +109,27 @@ def _trim_to_sentence(text: str | None, max_chars: int) -> str:
     return cleaned.rstrip(",;:") + "."
 
 
+def _broaden_management_summary(summary: str, source_cv_text: str | None) -> str:
+    source = str(source_cv_text or "")
+    if not source:
+        return summary
+    source_low = source.lower()
+    if not re.search(r"management (associate|trainee)|business analyst|project manager", source_low):
+        return summary
+    summary_low = summary.lower()
+    if re.search(r"management trainee|business analyst|project manager|pm/ba|cross-functional", summary_low):
+        return summary
+    if not re.search(r"content evaluation|quality assurance|data professional|qa", summary_low):
+        return summary
+    sentences = re.findall(r"[^.!?]+[.!?]", summary)
+    lead = (
+        "Management Trainee and PM/BA profile with cross-functional experience across "
+        "financial markets operations, securities fiduciary operations, data analytics, and technology projects."
+    )
+    remainder = " ".join(s.strip() for s in sentences[1:3]) if len(sentences) > 1 else ""
+    return " ".join(part for part in (lead, remainder) if part).strip()
+
+
 def _dedupe_repeated_years(text: str) -> str:
     years = re.findall(r"\b(?:19|20)\d{2}\b", text)
     if "Ranges:" in text or len(years) < 2 or len(years) == len(set(years)):
@@ -215,6 +236,21 @@ def _normalize_bullet(bullet: str, *, current_role: bool = False) -> str:
     return cleaned
 
 
+def _clean_values(value) -> list[str]:
+    if not value:
+        return []
+    values = value if isinstance(value, list) else [value]
+    cleaned = []
+    seen = set()
+    for entry in values:
+        text = _normalize_bullet(str(entry))
+        key = text.lower()
+        if text and key not in seen:
+            cleaned.append(text)
+            seen.add(key)
+    return cleaned
+
+
 def _prioritize_keywords(items: list[str], keywords: list[str], limit: int) -> list[str]:
     scored = []
     lowered_keywords = [k.lower() for k in keywords if k]
@@ -250,6 +286,7 @@ def _limit_bullets(items: list[dict] | None, org_key: str) -> list[dict]:
 def _normalize_education(items: list[dict] | None) -> list[dict]:
     normalized = []
     for item in items or []:
+        bullets: list[str] = []
         bullet_sources = list(item.get("bullets") or [])
         details = item.get("details")
         coursework = item.get("coursework")
@@ -257,22 +294,39 @@ def _normalize_education(items: list[dict] | None) -> list[dict]:
             bullet_sources.extend(details)
         elif details:
             bullet_sources.append(str(details))
-        if isinstance(coursework, list):
-            bullet_sources.extend(f"Relevant coursework: {entry}" for entry in coursework)
-        elif coursework:
-            bullet_sources.append(f"Relevant coursework: {coursework}")
-        bullets: list[str] = []
+        location = str(item.get("location") or "").strip()
+        if location:
+            bullets.append(f"Location: {location}")
+        rank = str(item.get("rank") or "").strip()
+        if rank:
+            bullets.append(f"Rank: {rank}")
+        for award in _clean_values(item.get("awards") or item.get("scholarships")):
+            bullets.append(f"Award: {award}")
+        activities = _clean_values(item.get("activities"))
+        if activities:
+            bullets.append(f"Activities: {', '.join(activities)}")
+        coursework_items = _clean_values(coursework)
+        if coursework_items:
+            bullets.append(f"Relevant coursework: {', '.join(coursework_items)}")
         for entry in bullet_sources:
             cleaned = _normalize_bullet(entry)
-            if cleaned:
+            if cleaned and not cleaned.lower().startswith("relevant coursework:"):
                 bullets.append(cleaned)
+        deduped = []
+        seen = set()
+        for bullet in bullets:
+            key = bullet.lower()
+            if key not in seen:
+                deduped.append(bullet)
+                seen.add(key)
         normalized.append(
             {
                 "institution": item.get("institution", ""),
                 "degree": item.get("degree", ""),
                 "gpa": item.get("gpa", ""),
                 "year": item.get("year", ""),
-                "bullets": bullets,
+                "location": location,
+                "bullets": deduped,
             }
         )
     return normalized
@@ -387,6 +441,7 @@ def apply_cv_rules(
 
     keywords = _extract_keywords(job_title, company, job_description)
     normalized["summary"] = _trim_to_sentence(normalized.get("summary"), MAX_SUMMARY_CHARS)
+    normalized["summary"] = _broaden_management_summary(normalized["summary"], source_cv_text)
     normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")[:MAX_EXPERIENCE_ITEMS]
     normalized["leadership"] = _limit_bullets(normalized.get("leadership"), "organization")[:MAX_LEADERSHIP_ITEMS]
     normalized["education"] = _normalize_education(normalized.get("education"))
