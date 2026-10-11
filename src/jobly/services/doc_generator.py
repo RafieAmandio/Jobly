@@ -37,6 +37,7 @@ LIST_SECTIONS = (
 )
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def _display_name(data: dict, fallback_full_name: str) -> str:
@@ -53,6 +54,16 @@ def _contact_line(contact: dict | None) -> list[str]:
         if value:
             parts.append(str(value).strip())
     return parts
+
+
+def _href_for_part(part: str) -> str | None:
+    if part.startswith(("http://", "https://")):
+        return part
+    if part.startswith("www."):
+        return f"https://{part}"
+    if _EMAIL_RE.match(part):
+        return f"mailto:{part}"
+    return None
 
 
 def _header_line(data: dict, fallback_full_name: str) -> str:
@@ -100,6 +111,59 @@ def _runs(paragraph, text: str, italic: bool = False, size: float | None = None)
         run.italic = italic
         if size:
             run.font.size = Pt(size)
+
+
+def _hyperlink_run(
+    paragraph, text: str, href: str, *, bold: bool = False, size: float | None = None
+):
+    part = paragraph.part
+    r_id = part.relate_to(
+        href,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True,
+    )
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    new_run = OxmlElement("w:r")
+    r_pr = OxmlElement("w:rPr")
+    if bold:
+        r_pr.append(OxmlElement("w:b"))
+    if size:
+        sz = OxmlElement("w:sz")
+        sz.set(qn("w:val"), str(int(size * 2)))
+        r_pr.append(sz)
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    r_pr.append(color)
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    r_pr.append(underline)
+    new_run.append(r_pr)
+    t = OxmlElement("w:t")
+    t.text = text
+    new_run.append(t)
+    hyperlink.append(new_run)
+    paragraph._p.append(hyperlink)
+
+
+def _header_runs(paragraph, data: dict, fallback_full_name: str) -> None:
+    name = _display_name(data, fallback_full_name)
+    parts = [name] if name else []
+    for part in _contact_line(data.get("contact")):
+        if part not in parts:
+            parts.append(part)
+    for index, part in enumerate(parts):
+        if index:
+            sep = paragraph.add_run(" | ")
+            sep.bold = True
+            sep.font.size = Pt(9.5)
+        href = _href_for_part(part)
+        if href:
+            _hyperlink_run(paragraph, part, href, bold=True, size=9.5)
+        else:
+            run = paragraph.add_run(part)
+            run.bold = True
+            run.font.size = Pt(9.5)
 
 
 def _section(doc, title: str):
@@ -205,9 +269,7 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
         header_p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         header_p.paragraph_format.space_after = Pt(4)
-        header_run = header_p.add_run(_header_line(data, full_name))
-        header_run.bold = True
-        header_run.font.size = Pt(9.5)
+        _header_runs(header_p, data, full_name)
         _rule(header_p, "bottom")
 
     style = doc.styles["Normal"]
@@ -294,9 +356,7 @@ def generate_cover_letter_docx(
         header_p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         header_p.paragraph_format.space_after = Pt(4)
-        header_run = header_p.add_run(_header_line({"contact": contact}, full_name))
-        header_run.bold = True
-        header_run.font.size = Pt(9.5)
+        _header_runs(header_p, {"contact": contact}, full_name)
         _rule(header_p, "bottom")
 
     style = doc.styles["Normal"]
@@ -340,12 +400,13 @@ p { margin: 0; }
   padding-bottom: 4px;
 }
 .contact a { color: #0563C1; }
-.rule.pre-section { margin-top: 12px; }
+.rule.pre-section { margin-top: 12px; break-after: avoid; page-break-after: avoid; }
 .summary { text-align: justify; margin: 2px 0 0; }
 h2.section { font-size: 12pt; font-weight: bold; color: #1F4E79; text-transform: uppercase;
-             margin: 4px 0 2px; }
+             margin: 4px 0 2px; break-after: avoid; page-break-after: avoid; }
 .entry-head { display: flex; justify-content: space-between; align-items: baseline;
-              margin-top: 3px; }
+              margin-top: 3px; break-after: avoid; page-break-after: avoid; }
+.entry-block { break-inside: avoid; page-break-inside: avoid; }
 .entry-org { font-weight: normal; }
 .entry-period { white-space: nowrap; padding-left: 14px; }
 .entry-role { font-style: italic; margin-bottom: 1px; }
@@ -389,8 +450,8 @@ def _contact_html(contact: dict | None) -> str:
         return ""
     rendered = []
     for part in parts:
-        if part.startswith(("http://", "https://", "www.")):
-            href = part if part.startswith("http") else f"https://{part}"
+        href = _href_for_part(part)
+        if href:
             rendered.append(f"<a href='{escape(href)}'>{escape(part)}</a>")
         else:
             rendered.append(escape(part))
@@ -400,8 +461,8 @@ def _contact_html(contact: dict | None) -> str:
 def _header_html(data: dict, full_name: str) -> str:
     rendered = []
     for part in _header_line(data, full_name).split(" | "):
-        if part.startswith(("http://", "https://", "www.")):
-            href = part if part.startswith("http") else f"https://{part}"
+        href = _href_for_part(part)
+        if href:
             rendered.append(f"<a href='{escape(href)}'>{escape(part)}</a>")
         else:
             rendered.append(escape(part))
@@ -442,6 +503,7 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
                 continue
             parts.append(_section_html(heading))
             for exp in entries:
+                parts.append("<div class='entry-block'>")
                 parts.append(
                     "<div class='entry-head'>"
                     f"<span class='entry-org'>{_inline(_org_label(exp))}</span>"
@@ -451,6 +513,7 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
                 if exp.get("title"):
                     parts.append(f"<p class='entry-role'>{escape(str(exp['title']))}</p>")
                 parts += _bullets_html(exp.get("bullets"))
+                parts.append("</div>")
 
         for key, heading in LIST_SECTIONS:
             items = data.get(key) or []

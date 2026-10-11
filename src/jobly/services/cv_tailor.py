@@ -63,8 +63,10 @@ PRESENT_TENSE_OVERRIDES = {
 def _normalize_phone(phone: str | None) -> str | None:
     if not phone:
         return None
+    if "*" in str(phone):
+        return None
     digits = re.sub(r"\D+", "", phone)
-    if not digits:
+    if len(digits) < 8:
         return None
     if digits.startswith("62"):
         return f"+{digits}"
@@ -76,7 +78,8 @@ def _normalize_phone(phone: str | None) -> str | None:
 def _trim_location(location: str | None) -> str | None:
     if not location:
         return None
-    return location.split(",", 1)[0].strip()
+    broad = re.split(r"\s*/\s*|,", str(location), maxsplit=1)[0].strip()
+    return broad or None
 
 
 def _trim_text(text: str | None, max_chars: int) -> str:
@@ -85,6 +88,37 @@ def _trim_text(text: str | None, max_chars: int) -> str:
         return cleaned
     trimmed = cleaned[:max_chars].rsplit(" ", 1)[0].strip()
     return trimmed or cleaned[:max_chars].strip()
+
+
+def _trim_to_sentence(text: str | None, max_chars: int) -> str:
+    cleaned = _trim_text(text, max_chars)
+    if len(str(text or "").strip()) <= max_chars:
+        return cleaned
+    sentence_end = max(cleaned.rfind("."), cleaned.rfind("!"), cleaned.rfind("?"))
+    if sentence_end >= max_chars * 0.45:
+        return cleaned[: sentence_end + 1].strip()
+    return cleaned.rstrip(",;:") + "."
+
+
+def _dedupe_repeated_years(text: str) -> str:
+    years = re.findall(r"\b(?:19|20)\d{2}\b", text)
+    if len(years) < 2 or len(years) == len(set(years)):
+        return text
+
+    seen: set[str] = set()
+
+    def repl(match: re.Match[str]) -> str:
+        year = match.group(0)
+        if year in seen:
+            return ""
+        seen.add(year)
+        return year
+
+    cleaned = re.sub(r"\b(?:19|20)\d{2}\b", repl, text)
+    cleaned = re.sub(r",\s*,+", ",", cleaned)
+    cleaned = re.sub(r",\s+(?=\()", " ", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip(" ,")
 
 
 def _extract_display_name(source_cv_text: str | None, fallback_full_name: str | None) -> str:
@@ -131,6 +165,7 @@ def _normalize_bullet(bullet: str, *, current_role: bool = False) -> str:
     if not cleaned:
         return ""
     cleaned = _humanize_bullet(cleaned)
+    cleaned = _dedupe_repeated_years(cleaned)
     if current_role:
         cleaned = _to_present_tense(cleaned)
     if cleaned:
@@ -203,17 +238,32 @@ def _normalize_education(items: list[dict] | None) -> list[dict]:
 
 def _normalize_additional_info(info: dict | None) -> dict[str, list[str] | str]:
     rows: dict[str, list[str] | str] = {}
+    emitted_text = ""
     for label, value in (info or {}).items():
         if not value:
             continue
         if isinstance(value, list):
-            cleaned = [_strip_terminal_period(str(v).strip()) for v in value if str(v).strip()]
+            cleaned = []
+            seen = set()
+            for v in value:
+                item = _strip_terminal_period(str(v).strip())
+                key = item.lower()
+                if not item or key in seen:
+                    continue
+                if str(label).strip().lower() == "tests" and key in emitted_text.lower():
+                    continue
+                seen.add(key)
+                cleaned.append(item)
             if cleaned:
                 rows[str(label)] = cleaned
+                emitted_text += " " + " ".join(cleaned)
         else:
             cleaned = _strip_terminal_period(str(value).strip())
             if cleaned:
+                if str(label).strip().lower() == "tests" and cleaned.lower() in emitted_text.lower():
+                    continue
                 rows[str(label)] = cleaned
+                emitted_text += " " + cleaned
     return rows
 
 
@@ -279,9 +329,12 @@ def apply_cv_rules(
     contact = dict(normalized.get("contact") or {})
     if not contact.get("email") and user.email:
         contact["email"] = user.email
-    phone = _normalize_phone(contact.get("phone") or user.phone)
+    source_phone = contact.get("phone")
+    phone = _normalize_phone(source_phone) if source_phone else _normalize_phone(user.phone)
     if phone:
         contact["phone"] = phone
+    else:
+        contact.pop("phone", None)
     location = _trim_location(contact.get("location"))
     if location:
         contact["location"] = location
@@ -291,7 +344,7 @@ def apply_cv_rules(
     normalized["contact"] = contact
 
     keywords = _extract_keywords(job_title, company, job_description)
-    normalized["summary"] = _trim_text(normalized.get("summary"), MAX_SUMMARY_CHARS)
+    normalized["summary"] = _trim_to_sentence(normalized.get("summary"), MAX_SUMMARY_CHARS)
     normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")[:MAX_EXPERIENCE_ITEMS]
     normalized["leadership"] = _limit_bullets(normalized.get("leadership"), "organization")[:MAX_LEADERSHIP_ITEMS]
     normalized["education"] = _normalize_education(normalized.get("education"))

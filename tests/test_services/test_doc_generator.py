@@ -168,4 +168,9 @@ def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
 
     with ZipFile(BytesIO(result)) as zf:
         header_xml = zf.read("word/header1.xml").decode("utf-8")
-    assert "Dharma | Hong Kong SAR | dharma@example.com" in header_xml
+        assert "Dharma" in header_xml
+        assert "Hong Kong SAR" in header_xml
+        assert "dharma@example.com" in header_xml
+
+        rels_xml = zf.read("word/_rels/header1.xml.rels").decode("utf-8")
+        assert "mailto:dharma@example.com" in rels_xml
