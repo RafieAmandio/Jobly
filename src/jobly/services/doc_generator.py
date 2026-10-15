@@ -236,6 +236,24 @@ def _edu_label(edu: dict) -> str:
     return head
 
 
+def _edu_values(edu: dict, key: str) -> str:
+    value = edu.get(key)
+    if isinstance(value, list):
+        return ", ".join(str(item).strip() for item in value if str(item).strip())
+    return str(value or "").strip()
+
+
+def _labeled_line(doc, label: str, value: str):
+    if not value:
+        return None
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p.paragraph_format.space_after = Pt(0)
+    p.add_run(f"{label}: ").bold = True
+    _runs(p, value, italic=label == "Related Coursework")
+    return p
+
+
 def _additional_info(data: dict) -> list[tuple[str, str]]:
     """(label, value) rows for the ADDITIONAL INFORMATION block."""
     info = data.get("additional_info")
@@ -294,20 +312,22 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
 
     education = _exp_entries(data, "education")
     if education:
-        _section(doc, "Education")
+        _section(doc, "Education Background")
     for edu in education:
-        label = _edu_label(edu)
-        if label:
-            head = doc.add_paragraph()
-            head.paragraph_format.space_before = Pt(2)
-            head.paragraph_format.space_after = Pt(0)
-            _runs(head, label)
-        if edu.get("year"):
-            period = doc.add_paragraph()
-            period.paragraph_format.space_after = Pt(1)
-            period.add_run(str(edu["year"]))
-        for bullet in edu.get("bullets") or []:
-            _bullet(doc, bullet)
+        institution = str(edu.get("institution") or "").strip()
+        degree = str(edu.get("degree") or "").strip()
+        if institution or edu.get("location"):
+            _entry_head(doc, f"**{institution}**" if institution else "", str(edu.get("location") or ""))
+        if degree or edu.get("year"):
+            _entry_head(doc, f"**{degree}**" if degree else "", str(edu.get("year") or ""))
+        gpa = str(edu.get("gpa") or "").strip()
+        rank = str(edu.get("rank") or "").strip()
+        if rank and rank.lower() not in gpa.lower():
+            gpa = f"{gpa}; {rank}" if gpa else rank
+        _labeled_line(doc, "Cumulative GPA", gpa)
+        _labeled_line(doc, "Related Coursework", _edu_values(edu, "coursework"))
+        _labeled_line(doc, "Honors and Awards", _edu_values(edu, "honors_awards"))
+        _labeled_line(doc, "Activities", _edu_values(edu, "activities"))
 
     for key, heading in (
         ("experience", "Work Experiences"),
@@ -416,6 +436,10 @@ h2.section { font-size: 12pt; font-weight: bold; color: #1F4E79; text-transform:
 .entry-head { display: flex; justify-content: space-between; align-items: baseline;
               margin-top: 3px; break-after: avoid; page-break-after: avoid; }
 .entry-block { break-inside: avoid; page-break-inside: avoid; }
+.education-entry { break-inside: avoid; page-break-inside: avoid; }
+.education-line { text-align: justify; margin: 0; }
+.education-label { font-weight: bold; }
+.education-coursework { font-style: italic; }
 .entry-org { font-weight: normal; }
 .entry-period { white-space: nowrap; padding-left: 14px; }
 .entry-role { font-style: italic; margin-bottom: 1px; }
@@ -442,6 +466,16 @@ def _inline(text: str) -> str:
 
 def _section_html(title: str) -> str:
     return f"{_RULE_SECTION}<h2 class='section'>{title}</h2>"
+
+
+def _edu_labeled_html(label: str, value: str) -> str:
+    if not value:
+        return ""
+    value_class = " education-coursework" if label == "Related Coursework" else ""
+    return (
+        f"<p class='education-line'><span class='education-label'>{escape(label)}:</span> "
+        f"<span class='{value_class.strip()}'>{_inline(value)}</span></p>"
+    )
 
 
 def _bullets_html(items) -> list[str]:
@@ -501,14 +535,32 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
 
         education = _exp_entries(data, "education")
         if education:
-            parts.append(_section_html("Education"))
+            parts.append(_section_html("Education Background"))
             for edu in education:
-                label = _edu_label(edu)
-                if label:
-                    parts.append(f"<p>{_inline(label)}</p>")
-                if edu.get("year"):
-                    parts.append(f"<p class='edu-period'>{escape(str(edu['year']))}</p>")
-                parts += _bullets_html(edu.get("bullets"))
+                institution = str(edu.get("institution") or "").strip()
+                degree = str(edu.get("degree") or "").strip()
+                parts.append("<div class='education-entry'>")
+                parts.append(
+                    "<div class='entry-head'>"
+                    f"<span class='entry-org'><b>{escape(institution)}</b></span>"
+                    f"<span class='entry-period'>{escape(str(edu.get('location') or ''))}</span>"
+                    "</div>"
+                )
+                parts.append(
+                    "<div class='entry-head'>"
+                    f"<span class='entry-org'><b>{escape(degree)}</b></span>"
+                    f"<span class='entry-period'><i>{escape(str(edu.get('year') or ''))}</i></span>"
+                    "</div>"
+                )
+                gpa = str(edu.get("gpa") or "").strip()
+                rank = str(edu.get("rank") or "").strip()
+                if rank and rank.lower() not in gpa.lower():
+                    gpa = f"{gpa}; {rank}" if gpa else rank
+                parts.append(_edu_labeled_html("Cumulative GPA", gpa))
+                parts.append(_edu_labeled_html("Related Coursework", _edu_values(edu, "coursework")))
+                parts.append(_edu_labeled_html("Honors and Awards", _edu_values(edu, "honors_awards")))
+                parts.append(_edu_labeled_html("Activities", _edu_values(edu, "activities")))
+                parts.append("</div>")
 
         for key, heading in (
             ("experience", "Work Experiences"),

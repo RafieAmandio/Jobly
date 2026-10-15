@@ -76,10 +76,9 @@ def test_apply_cv_rules_normalizes_financial_light_structure():
     assert normalized["experience"][0]["bullets"][0] == "Managed reporting for SQL dashboards"
     assert normalized["leadership"][0]["bullets"][0] == "Organized mentoring program"
     assert normalized["education"][0]["gpa"] == "3.78/4.00"
-    assert normalized["education"][0]["bullets"] == [
-        "Relevant coursework: Machine Learning, Data Mining",
-        "Dean's List",
-    ]
+    assert normalized["education"][0]["coursework"] == ["Machine Learning", "Data Mining"]
+    assert normalized["education"][0]["honors_awards"] == ["Dean's List"]
+    assert normalized["education"][0]["bullets"] == []
     assert normalized["additional_info"] == {"Languages": ["English", "Indonesian"]}
     assert normalized["extra_miles"] == ["Fintech Automation Project", "SQL Certification", "Award A"]
     assert normalized["skills"]["technical"] == ["SQL", "Financial Modeling", "Excel"]
@@ -173,14 +172,27 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
     assert "cross-functional" in normalized["summary"]
     assert normalized["contact"]["location"] == "Hong Kong SAR"
     assert normalized["contact"]["phone"] == "+628123456789"
-    assert normalized["education"][0]["bullets"] == [
-        "Location: Shenzhen, China",
-        "Rank: First Honours GPA (Rank 10: 174)",
-        "Award: Academic Scholarship Group C",
-        "Activities: Teaching Assistant, Research Assistant, Mentor, Student Representative, USTF",
-        "Relevant coursework: Intro to Data Science, Linear Algebra, Numerical Methods, Supply Chain",
-        "Dean's List Ranges: 2020-2021, 2022-2023, 2023-24 (Top 15%)"
+    education = normalized["education"][0]
+    assert education["location"] == "Shenzhen, China"
+    assert education["rank"] == "First Honours GPA (Rank 10: 174)"
+    assert education["coursework"] == [
+        "Intro to Data Science",
+        "Linear Algebra",
+        "Numerical Methods",
+        "Supply Chain",
     ]
+    assert education["honors_awards"] == [
+        "Academic Scholarship Group C",
+        "Dean's List Ranges: 2020-2021, 2022-2023, 2023-24 (Top 15%)",
+    ]
+    assert education["activities"] == [
+        "Teaching Assistant",
+        "Research Assistant",
+        "Mentor",
+        "Student Representative",
+        "USTF",
+    ]
+    assert education["bullets"] == []
     assert normalized["additional_info"] == {
         "Languages": [
             "Indonesian: Professional",
