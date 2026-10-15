@@ -199,3 +199,24 @@ def test_generate_cv_pdf_renders_large_name_separate_from_contact():
 
     assert isinstance(result, bytes)
     assert b"font-size: 16pt" in result or result.startswith(b"%PDF")
+
+
+def test_generate_cv_docx_omits_missing_optional_education_rows():
+    data = {
+        "education": [
+            {
+                "institution": "Universitas Indonesia",
+                "degree": "BSc Computer Science",
+                "year": "2020 - 2024",
+            }
+        ]
+    }
+
+    parsed = Document(BytesIO(generate_cv_docx(data, "Candidate")))
+    body_text = "\n".join(p.text for p in parsed.paragraphs)
+
+    assert "EDUCATION BACKGROUND" in body_text
+    assert "Related Coursework:" not in body_text
+    assert "Honors and Awards:" not in body_text
+    assert "Activities:" not in body_text
+    assert "Cumulative GPA:" not in body_text
