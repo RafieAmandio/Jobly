@@ -13,6 +13,8 @@ from jobly.services.doc_generator import generate_cv_docx, generate_cv_pdf
 logger = logging.getLogger(__name__)
 
 MAX_SUMMARY_CHARS = 650
+MAX_SUMMARY_WORDS = 100
+MAX_SUMMARY_SENTENCES = 4
 MAX_EXPERIENCE_ITEMS = 4
 MAX_LEADERSHIP_ITEMS = 2
 MAX_EXTRA_MILES_ITEMS = 5
@@ -107,6 +109,39 @@ def _trim_to_sentence(text: str | None, max_chars: int) -> str:
     if sentence_end >= max_chars * 0.45:
         return cleaned[: sentence_end + 1].strip()
     return cleaned.rstrip(",;:") + "."
+
+
+def _normalize_summary(text: str | None) -> str:
+    summary = re.sub(r"\s+", " ", str(text or "").strip())
+    if not summary:
+        return ""
+    summary = re.sub(
+        r"\b(?:hardworking|team player|go-getter|results-driven|detail-oriented)\b[,;:\s-]*",
+        "",
+        summary,
+        flags=re.IGNORECASE,
+    )
+    summary = re.sub(r"\bI am\b\s*", "", summary, flags=re.IGNORECASE)
+    summary = re.sub(r"\bI have\b", "Brings", summary, flags=re.IGNORECASE)
+    summary = re.sub(r"\bmy\b", "the candidate's", summary, flags=re.IGNORECASE)
+    summary = re.sub(r"\s+", " ", summary).strip(" ,;:-")
+
+    sentences = [s.strip() for s in re.findall(r"[^.!?]+[.!?]", summary)]
+    if not sentences:
+        return _trim_to_sentence(summary, MAX_SUMMARY_CHARS)
+
+    selected: list[str] = []
+    word_count = 0
+    for sentence in sentences[:MAX_SUMMARY_SENTENCES]:
+        sentence_words = len(sentence.split())
+        if selected and word_count + sentence_words > MAX_SUMMARY_WORDS:
+            break
+        selected.append(sentence)
+        word_count += sentence_words
+
+    if not selected:
+        return _trim_to_sentence(summary, MAX_SUMMARY_CHARS)
+    return " ".join(selected)
 
 
 def _broaden_management_summary(summary: str, source_cv_text: str | None) -> str:
@@ -440,8 +475,9 @@ def apply_cv_rules(
     normalized["contact"] = contact
 
     keywords = _extract_keywords(job_title, company, job_description)
-    normalized["summary"] = _trim_to_sentence(normalized.get("summary"), MAX_SUMMARY_CHARS)
+    normalized["summary"] = _normalize_summary(normalized.get("summary"))
     normalized["summary"] = _broaden_management_summary(normalized["summary"], source_cv_text)
+    normalized["summary"] = _normalize_summary(normalized["summary"])
     normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")[:MAX_EXPERIENCE_ITEMS]
     normalized["leadership"] = _limit_bullets(normalized.get("leadership"), "organization")[:MAX_LEADERSHIP_ITEMS]
     normalized["education"] = _normalize_education(normalized.get("education"))
