@@ -226,3 +226,26 @@ def test_apply_cv_rules_enforces_summary_style_and_length():
     assert "40%" in summary
     assert "$500k" in summary
     assert "fifth sentence" not in summary.lower()
+
+
+def test_apply_cv_rules_keeps_optional_education_fields_empty():
+    user = SimpleNamespace(email=None, phone=None, full_name="Candidate")
+    data = {
+        "education": [
+            {
+                "institution": "Universitas Indonesia",
+                "degree": "BSc Computer Science",
+                "year": "2020 - 2024",
+            }
+        ],
+        "skills": {"technical": [], "soft": [], "tools": []},
+    }
+
+    education = apply_cv_rules(data, user)["education"][0]
+
+    assert education["location"] == ""
+    assert education["gpa"] == ""
+    assert education["rank"] == ""
+    assert education["coursework"] == []
+    assert education["honors_awards"] == []
+    assert education["activities"] == []
