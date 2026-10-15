@@ -19,6 +19,7 @@ def test_generate_cv_docx():
             {
                 "title": "Senior Engineer",
                 "company": "Gojek",
+                "location": "Jakarta, Indonesia",
                 "period": "2021-present",
                 "bullets": [
                     "Lead migration to microservices",
@@ -40,12 +41,81 @@ def test_generate_cv_docx():
     assert isinstance(result, bytes)
     assert len(result) > 0
     assert result[:2] == b"PK"
+    parsed = Document(BytesIO(result))
+    body_text = [p.text for p in parsed.paragraphs]
+    assert any("Senior Engineer\tJakarta, Indonesia | 2021-present" in text for text in body_text)
 
 
 def test_generate_cv_docx_minimal():
     result = generate_cv_docx({}, "Minimal User")
     assert isinstance(result, bytes)
     assert len(result) > 0
+
+
+def test_generate_cv_pdf_aligns_work_location_with_period():
+    data = {
+        "experience": [
+            {
+                "company": "DBS Bank HK Limited",
+                "title": "Business Analyst (Global Financial Market Operations)",
+                "location": "Hong Kong SAR",
+                "period": "Jul 2025 – Jun 2026",
+                "bullets": [
+                    "Analyze operational requirements",
+                    "Coordinate stakeholders",
+                    "Improve reporting workflows",
+                ],
+            }
+        ]
+    }
+
+    result = generate_cv_pdf(data, "Dharma Setiawan")
+    assert isinstance(result, bytes)
+    with pdfplumber.open(BytesIO(result)) as pdf:
+        text = pdf.pages[0].extract_text() or ""
+
+    assert "DBS Bank HK Limited" in text
+    assert "Business Analyst (Global Financial Market Operations) Hong Kong SAR | Jul 2025 – Jun 2026" in text
+
+
+def test_generate_cv_pdf_keeps_six_three_bullet_roles_within_two_pages():
+    data = {
+        "summary": (
+            "Business Analyst with cross-functional financial-services experience. "
+            "Translates operational requirements into practical workflows and stakeholder outcomes."
+        ),
+        "experience": [
+            {
+                "company": f"Relevant Employer {index}",
+                "title": "Business Analyst",
+                "location": "Hong Kong SAR",
+                "period": f"202{index} – 202{index + 1}",
+                "bullets": [
+                    "Analyzed operational requirements and documented implementation priorities",
+                    "Coordinated business stakeholders across delivery and governance workstreams",
+                    "Improved reporting workflows using source-supported process findings",
+                ],
+            }
+            for index in range(6)
+        ],
+        "education": [
+            {
+                "institution": "The Chinese University of Hong Kong, Shenzhen",
+                "degree": "Bachelor of Science",
+                "location": "Shenzhen, China",
+                "year": "2020 – 2024",
+            }
+        ],
+    }
+
+    result = generate_cv_pdf(data, "Dharma Setiawan")
+    assert isinstance(result, bytes)
+    with pdfplumber.open(BytesIO(result)) as pdf:
+        assert len(pdf.pages) <= 2
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+
+    assert "Relevant Employer 0" in text
+    assert "Relevant Employer 5" in text
 
 
 def test_generate_cv_docx_with_contact_and_extra_sections():

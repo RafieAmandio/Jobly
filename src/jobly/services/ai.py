@@ -49,31 +49,33 @@ async def tailor_cv_content(
                         "truthful to the candidate's actual experience. Follow these CV formatting rules: "
                         "personal info should use a concise header name exactly as the candidate presents it in the CV, "
                         "broad-area location only (not full detailed address), phone should be suitable for +62 formatting, "
-                        "and email plus portfolio/link should be kept usable as hyperlinks; work and leadership descriptions "
-                        "must be bullet points only, maximum 3 bullets each; education should preserve GPA, notable courses, "
+                        "and email plus portfolio/link should be kept usable as hyperlinks; include every work experience "
+                        "relevant to the target role with exactly 3 concise, source-supported bullets per role whenever the source "
+                        "contains enough detail; never invent a bullet merely to reach three. Education should preserve GPA, notable courses, "
                         "and brief achievements when the source CV includes them; additional information should be surfaced when "
                         "the source CV includes languages, certifications, tests, or other supporting details; the final CV should "
                         "stay concise and relevant, targeting a maximum of 2 pages in a clean ATS-friendly format.\n\n"
                         "Instructions:\n"
                         "1. Analyze the job description for key requirements, skills, and keywords\n"
-                        "2. Rewrite the CV sections to emphasize only the most relevant experience for this role\n"
+                        "2. Include all work experiences relevant to the target role. Do not apply a maximum role count and do not drop a relevant role merely because there are already four or five entries. Omit only genuinely irrelevant employment. Keep bullets compact so the complete CV fits within 2 pages\n"
                         "3. Write a SUMMARY of 2-4 complete sentences and 50-100 words. Start immediately with the candidate's supported job title/identity, seniority level, and years of experience when the source CV provides them. Include at least one concrete source-supported metric or quantified achievement when available. Mirror relevant target-job keywords naturally for ATS. Use neutral third-person/fragments with no I, me, or my. Avoid generic buzzwords such as hardworking, team player, go-getter, results-driven, and detail-oriented. Preserve broad positioning from the source CV, especially Management Trainee / PM / BA / cross-functional experience, and do not collapse it into a narrow data/QA/content-evaluation profile unless the source CV only supports that\n"
                         "4. Naturally incorporate role-relevant keywords from the job description into summary, experience, leadership, and skills without keyword stuffing\n"
                         "5. Rephrase bullet points using direct, human-sounding action verbs; avoid AI-sounding filler, avoid em dashes, and avoid decorative phrasing\n"
                         "6. Use only metrics, scope, and data that are already supported by the source CV; never invent numbers or impact\n"
                         "7. Keep all factual information (dates, companies, degrees) unchanged and keep the tone genuine\n"
                         "8. If a role is current or the source says present/current, write bullets in present tense; otherwise use past tense\n"
-                        "9. Every bullet must be a fragment, not a full sentence, and must not end with a period\n"
+                        "9. Every bullet must be a concise fragment, ideally no more than 18 words, not a full sentence, and must not end with a period. Return exactly 3 bullets for each work role when three truthful source-supported points are available; otherwise return only the supported points and never fabricate content\n"
                         "10. Extract the candidate's contact details (broad-area location, email, phone, LinkedIn URL or portfolio link) from the CV into the 'contact' object. Omit any field not present in the CV; never invent contact details. Omit masked/incomplete phone numbers and use one broad location only, not combined multi-country strings\n"
                         "11. Include a 'leadership' section when the CV contains organizations, committees, volunteering, or campus leadership relevant to the role\n"
                         "12. If the CV lists certifications, awards/achievements, notable projects, languages, tests, or supporting details, preserve the most relevant ones in either 'extra_miles' or 'additional_info'. Do not repeat the same test score in both Languages and Tests\n"
                         "13. In education, return location as city and country, keep attendance dates in 'year', and keep coursework, honors/awards, and activities as separate arrays. These fields are optional: only include information explicitly present in the source CV, leave missing arrays empty, and never infer or invent coursework, honors, awards, activities, rank, location, or GPA. Do not put these details in education bullets; each present category will render as one inline labeled row\n"
-                        "14. Do not merge academic, bootcamp, capstone, or program project labels into unrelated employment entries. Keep chronology and source context clean\n"
-                        f"15. Output in {lang_name}\n\n"
+                        "14. For every work experience, extract its broad location exactly when present in the source CV into a separate 'location' field. Do not place the location inside company, title, period, or bullets and never infer it\n"
+                        "15. Do not merge academic, bootcamp, capstone, or program project labels into unrelated employment entries. Keep chronology and source context clean\n"
+                        f"16. Output in {lang_name}\n\n"
                         "Output valid JSON with this structure:\n"
                         '{"display_name": "...", "contact": {"location": "...", "email": "...", "phone": "...", "portfolio": "...", "linkedin": "..."}, '
                         '"summary": "...", "experience": [{"company": "...", "title": "...", '
-                        '"period": "...", "bullets": ["..."]}], '
+                        '"location": "...", "period": "...", "bullets": ["...", "...", "..."]}], '
                         '"leadership": [{"organization": "...", "title": "...", "period": "...", "brief": "...", "bullets": ["..."]}], '
                         '"education": [{"institution": "...", "degree": "...", "gpa": "...", "year": "...", "location": "City, Country", "rank": "...", "honors_awards": ["..."], "activities": ["..."], "details": ["..."], "coursework": ["..."]}], '
                         '"extra_miles": ["..."], '
