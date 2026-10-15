@@ -321,39 +321,48 @@ def _limit_bullets(items: list[dict] | None, org_key: str) -> list[dict]:
 def _normalize_education(items: list[dict] | None) -> list[dict]:
     normalized = []
     for item in items or []:
-        bullets: list[str] = []
-        bullet_sources = list(item.get("bullets") or [])
         details = item.get("details")
-        coursework = item.get("coursework")
-        if isinstance(details, list):
-            bullet_sources.extend(details)
-        elif details:
-            bullet_sources.append(str(details))
+        detail_values = details if isinstance(details, list) else ([details] if details else [])
+        legacy_values = list(item.get("bullets") or []) + detail_values
+
         location = str(item.get("location") or "").strip()
-        if location:
-            bullets.append(f"Location: {location}")
         rank = str(item.get("rank") or "").strip()
-        if rank:
-            bullets.append(f"Rank: {rank}")
-        for award in _clean_values(item.get("awards") or item.get("scholarships")):
-            bullets.append(f"Award: {award}")
+        coursework = _clean_values(item.get("coursework"))
+        honors_awards = _clean_values(
+            item.get("honors_awards") or item.get("awards") or item.get("scholarships")
+        )
         activities = _clean_values(item.get("activities"))
-        if activities:
-            bullets.append(f"Activities: {', '.join(activities)}")
-        coursework_items = _clean_values(coursework)
-        if coursework_items:
-            bullets.append(f"Relevant coursework: {', '.join(coursework_items)}")
-        for entry in bullet_sources:
-            cleaned = _normalize_bullet(entry)
-            if cleaned and not cleaned.lower().startswith("relevant coursework:"):
-                bullets.append(cleaned)
-        deduped = []
-        seen = set()
-        for bullet in bullets:
-            key = bullet.lower()
-            if key not in seen:
-                deduped.append(bullet)
-                seen.add(key)
+
+        for entry in legacy_values:
+            cleaned = _normalize_bullet(str(entry))
+            if not cleaned:
+                continue
+            label, separator, value = cleaned.partition(":")
+            label_low = label.strip().lower()
+            value = value.strip() if separator else cleaned
+            if label_low == "location" and value:
+                location = location or value
+            elif label_low == "rank" and value:
+                rank = rank or value
+            elif label_low in {"related coursework", "coursework"} and value:
+                coursework.extend(_clean_values([part.strip() for part in value.split(",")]))
+            elif label_low in {"activities", "activity"} and value:
+                activities.extend(_clean_values([part.strip() for part in value.split(",")]))
+            elif label_low in {"award", "awards", "honors and awards", "honours and awards"} and value:
+                honors_awards.append(value)
+            elif re.search(r"scholarship|dean'?s list|honou?r|award", cleaned, re.IGNORECASE):
+                honors_awards.append(cleaned)
+
+        def dedupe(values: list[str]) -> list[str]:
+            result = []
+            seen = set()
+            for value in values:
+                key = value.lower()
+                if value and key not in seen:
+                    result.append(value)
+                    seen.add(key)
+            return result
+
         normalized.append(
             {
                 "institution": item.get("institution", ""),
@@ -361,7 +370,11 @@ def _normalize_education(items: list[dict] | None) -> list[dict]:
                 "gpa": item.get("gpa", ""),
                 "year": item.get("year", ""),
                 "location": location,
-                "bullets": deduped,
+                "rank": rank,
+                "coursework": dedupe(coursework),
+                "honors_awards": dedupe(honors_awards),
+                "activities": dedupe(activities),
+                "bullets": [],
             }
         )
     return normalized

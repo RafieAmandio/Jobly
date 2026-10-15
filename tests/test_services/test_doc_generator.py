@@ -71,7 +71,10 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
                 "degree": "Computer Engineering",
                 "gpa": "3.85/4.00",
                 "year": "2021 - 2025",
-                "bullets": ["Relevant coursework: Distributed Systems, Machine Learning"],
+                "location": "Depok, Indonesia",
+                "coursework": ["Distributed Systems", "Machine Learning"],
+                "honors_awards": ["Dean's List"],
+                "activities": ["Teaching Assistant", "Student Representative"],
             }
         ],
         "certifications": ["Cisco CCNA"],
@@ -92,10 +95,16 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
     assert result[:2] == b"PK"
     assert any("Rafie" in text and "Jakarta, Indonesia | rafie@example.com" in text for text in header_text)
     assert any("3.85/4.00" in text for text in body_text)
+    assert "EDUCATION BACKGROUND" in body_text
+    assert any("UNIVERSITAS INDONESIA\tDepok, Indonesia" in text for text in body_text)
+    assert any("Computer Engineering\t2021 - 2025" in text for text in body_text)
     assert any(
-        "Relevant coursework: Distributed Systems, Machine Learning" in text
+        "Related Coursework: Distributed Systems, Machine Learning" in text
         for text in body_text
     )
+    assert any("Honors and Awards: Dean's List" in text for text in body_text)
+    assert any("Activities: Teaching Assistant, Student Representative" in text for text in body_text)
+    assert not any(text.startswith("●") and "Coursework" in text for text in body_text)
     assert "ADDITIONAL INFORMATION" in body_text
     assert any("Languages: Indonesian, English" in text for text in body_text)
     assert any("Tests: IELTS 7.0" in text for text in body_text)
