@@ -60,6 +60,49 @@ def edit_menu_keyboard(lang: str = "id") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+async def _selected_category_indices(session: AsyncSession, user_id) -> set[int]:
+    selected_category_ids = (
+        await session.execute(select(UserCategory.category_id).where(UserCategory.user_id == user_id))
+    ).scalars().all()
+    if not selected_category_ids:
+        return set()
+
+    categories = (
+        await session.execute(select(Category).where(Category.id.in_(selected_category_ids)))
+    ).scalars().all()
+    index_by_slug = {category["slug"]: idx for idx, category in enumerate(CATEGORIES)}
+    return {index_by_slug[category.slug] for category in categories if category.slug in index_by_slug}
+
+
+async def _selected_location_indices(session: AsyncSession, user_id) -> set[int]:
+    selected_location_ids = (
+        await session.execute(select(UserLocation.location_id).where(UserLocation.user_id == user_id))
+    ).scalars().all()
+    if not selected_location_ids:
+        return set()
+
+    locations = (
+        await session.execute(select(Location).where(Location.id.in_(selected_location_ids)))
+    ).scalars().all()
+    index_by_city = {location["city"]: idx for idx, location in enumerate(LOCATIONS)}
+    return {index_by_city[location.city] for location in locations if location.city in index_by_city}
+
+
+async def _selected_arrangement_names(session: AsyncSession, user_id) -> set[str]:
+    selected_arrangement_ids = (
+        await session.execute(
+            select(UserWorkArrangement.arrangement_id).where(UserWorkArrangement.user_id == user_id)
+        )
+    ).scalars().all()
+    if not selected_arrangement_ids:
+        return set()
+
+    arrangements = (
+        await session.execute(select(WorkArrangement).where(WorkArrangement.id.in_(selected_arrangement_ids)))
+    ).scalars().all()
+    return {arrangement.name for arrangement in arrangements if arrangement.name}
+
+
 @router.message(Command("edit_preferences"))
 async def cmd_edit_preferences(
     message: Message, state: FSMContext, db_user: User | None, lang: str
@@ -73,12 +116,19 @@ async def cmd_edit_preferences(
 
 
 @router.callback_query(EditPrefState.choosing, F.data == "edit_cat")
-async def on_edit_categories(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
-    await state.update_data(selected_categories=set())
+async def on_edit_categories(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    db_user: User,
+    lang: str,
+) -> None:
+    selected_categories = await _selected_category_indices(session, db_user.id)
+    await state.update_data(selected_categories=selected_categories, cat_page=0)
     await state.set_state(EditPrefState.categories)
     await callback.message.edit_text(
         t("ask_categories", lang),
-        reply_markup=category_keyboard(page=0, lang=lang),
+        reply_markup=category_keyboard(page=0, selected=selected_categories, lang=lang),
     )
     await callback.answer()
 
@@ -168,19 +218,7 @@ async def on_edit_locations(
     db_user: User,
     lang: str,
 ) -> None:
-    selected_location_ids = (
-        await session.execute(select(UserLocation.location_id).where(UserLocation.user_id == db_user.id))
-    ).scalars().all()
-    selected_locations = set()
-    if selected_location_ids:
-        locations = (
-            await session.execute(select(Location).where(Location.id.in_(selected_location_ids)))
-        ).scalars().all()
-        index_by_city = {loc["city"]: idx for idx, loc in enumerate(LOCATIONS)}
-        selected_locations = {
-            index_by_city[location.city] for location in locations if location.city in index_by_city
-        }
-
+    selected_locations = await _selected_location_indices(session, db_user.id)
     await state.update_data(selected_locations=selected_locations, loc_page=0)
     await state.set_state(EditPrefState.locations)
     await callback.message.edit_text(
@@ -243,11 +281,19 @@ async def on_edit_loc_done(
 
 
 @router.callback_query(EditPrefState.choosing, F.data == "edit_arr")
-async def on_edit_arrangements(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
-    await state.update_data(selected_arrangements=set())
+async def on_edit_arrangements(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    db_user: User,
+    lang: str,
+) -> None:
+    selected_arrangements = await _selected_arrangement_names(session, db_user.id)
+    await state.update_data(selected_arrangements=selected_arrangements)
     await state.set_state(EditPrefState.arrangements)
     await callback.message.edit_text(
-        t("ask_work_arrangement", lang), reply_markup=work_arrangement_keyboard(lang=lang)
+        t("ask_work_arrangement", lang),
+        reply_markup=work_arrangement_keyboard(selected=selected_arrangements, lang=lang),
     )
     await callback.answer()
 
