@@ -1,3 +1,4 @@
+import re
 from types import SimpleNamespace
 
 from jobly.services.cv_tailor import apply_cv_rules
@@ -186,3 +187,30 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
             "English: Professional (IELTS 7, SAT 1290)",
         ]
     }
+
+
+def test_apply_cv_rules_enforces_summary_style_and_length():
+    user = SimpleNamespace(email=None, phone=None, full_name="Candidate")
+    data = {
+        "summary": (
+            "I am a hardworking results-driven team player and Senior Data Analyst with 6+ years of experience. "
+            "I have improved reporting speed by 40% and supported a $500k portfolio. "
+            "My expertise includes SQL, Python, dashboarding, stakeholder management, and financial analysis. "
+            "Additional sentence that may remain because summaries allow up to four sentences. "
+            "This fifth sentence must be removed from the summary."
+        ),
+        "skills": {"technical": [], "soft": [], "tools": []},
+    }
+
+    normalized = apply_cv_rules(data, user)
+    summary = normalized["summary"]
+
+    assert 2 <= len(re.findall(r"[^.!?]+[.!?]", summary)) <= 4
+    assert len(summary.split()) <= 100
+    assert not re.search(r"\b(?:I|me|my)\b", summary, re.IGNORECASE)
+    assert "hardworking" not in summary.lower()
+    assert "team player" not in summary.lower()
+    assert "results-driven" not in summary.lower()
+    assert "40%" in summary
+    assert "$500k" in summary
+    assert "fifth sentence" not in summary.lower()

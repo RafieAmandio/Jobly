@@ -286,9 +286,10 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
     style.paragraph_format.line_spacing = 1.19
 
     if data.get("summary"):
+        _section(doc, "Summary")
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_before = Pt(0)
         _runs(p, data["summary"])
 
     education = _exp_entries(data, "education")
@@ -495,6 +496,7 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
         ]
 
         if data.get("summary"):
+            parts.append(_section_html("Summary"))
             parts.append(f"<p class='summary'>{_inline(data['summary'])}</p>")
 
         education = _exp_entries(data, "education")

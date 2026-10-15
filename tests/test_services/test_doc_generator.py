@@ -160,6 +160,7 @@ def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
 
     assert parsed.styles["Normal"].font.name == "Times New Roman"
     assert round(parsed.styles["Normal"].font.size.pt) == 10
+    assert "SUMMARY" in text
     assert "WORK EXPERIENCES" in text
     assert "VOLUNTEER & LEADERSHIP EXPERIENCES" in text
     assert "EXTRA MILES" in text
