@@ -426,7 +426,7 @@ def apply_cv_rules(
     if not contact.get("email") and user.email:
         contact["email"] = user.email
     source_phone = contact.get("phone")
-    phone = _normalize_phone(source_phone) if source_phone else _normalize_phone(user.phone)
+    phone = _normalize_phone(source_phone) or _normalize_phone(user.phone)
     if phone:
         contact["phone"] = phone
     else:

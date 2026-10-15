@@ -171,7 +171,7 @@ def test_apply_cv_rules_cleans_tailored_cv_regressions():
     assert "PM/BA" in normalized["summary"]
     assert "cross-functional" in normalized["summary"]
     assert normalized["contact"]["location"] == "Hong Kong SAR"
-    assert "phone" not in normalized["contact"]
+    assert normalized["contact"]["phone"] == "+628123456789"
     assert normalized["education"][0]["bullets"] == [
         "Location: Shenzhen, China",
         "Rank: First Honours GPA (Rank 10: 174)",
