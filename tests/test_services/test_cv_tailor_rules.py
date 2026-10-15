@@ -13,6 +13,7 @@ def test_apply_cv_rules_normalizes_financial_light_structure():
             {
                 "company": "A",
                 "title": "Role",
+                "location": "Hong Kong SAR",
                 "period": "2024",
                 "bullets": ["managed reporting for SQL dashboards.", "2", "3", "4"],
             },
@@ -69,9 +70,10 @@ def test_apply_cv_rules_normalizes_financial_light_structure():
     assert normalized["contact"]["portfolio"] == "https://linkedin.com/in/test"
     assert normalized["contact"]["location"] == "Jakarta Selatan"
     assert len(normalized["summary"]) <= 650
-    assert len(normalized["experience"]) == 4
+    assert len(normalized["experience"]) == 5
     assert len(normalized["leadership"]) == 2
     assert len(normalized["experience"][0]["bullets"]) == 3
+    assert normalized["experience"][0]["location"] == "Hong Kong SAR"
     assert len(normalized["leadership"][0]["bullets"]) == 3
     assert normalized["experience"][0]["bullets"][0] == "Managed reporting for SQL dashboards"
     assert normalized["leadership"][0]["bullets"][0] == "Organized mentoring program"

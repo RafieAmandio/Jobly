@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 MAX_SUMMARY_CHARS = 650
 MAX_SUMMARY_WORDS = 100
 MAX_SUMMARY_SENTENCES = 4
-MAX_EXPERIENCE_ITEMS = 4
 MAX_LEADERSHIP_ITEMS = 2
 MAX_EXTRA_MILES_ITEMS = 5
 MAX_SKILLS_PER_GROUP = 8
@@ -310,6 +309,7 @@ def _limit_bullets(items: list[dict] | None, org_key: str) -> list[dict]:
             {
                 org_key: item.get(org_key, ""),
                 "title": item.get("title", ""),
+                "location": item.get("location", ""),
                 "period": item.get("period", ""),
                 "bullets": bullets,
                 "brief": item.get("brief", ""),
@@ -491,7 +491,9 @@ def apply_cv_rules(
     normalized["summary"] = _normalize_summary(normalized.get("summary"))
     normalized["summary"] = _broaden_management_summary(normalized["summary"], source_cv_text)
     normalized["summary"] = _normalize_summary(normalized["summary"])
-    normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")[:MAX_EXPERIENCE_ITEMS]
+    # Keep every relevant employment entry returned by the tailoring pass. Relevance is
+    # decided from the job description, not by an arbitrary role-count cap.
+    normalized["experience"] = _limit_bullets(normalized.get("experience"), "company")
     normalized["leadership"] = _limit_bullets(normalized.get("leadership"), "organization")[:MAX_LEADERSHIP_ITEMS]
     normalized["education"] = _normalize_education(normalized.get("education"))
     normalized["additional_info"] = _normalize_additional_info(normalized.get("additional_info") or {})

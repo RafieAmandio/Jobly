@@ -220,10 +220,19 @@ def _exp_entries(data: dict, key: str) -> list[dict]:
 
 def _org_label(exp: dict) -> str:
     company = (exp.get("company") or exp.get("organization") or "").strip()
-    location = (exp.get("location") or "").strip()
-    if company and location:
-        return f"**{company}**, {location}"
-    return f"**{company}**" if company else location
+    return f"**{company}**" if company else ""
+
+
+def _location_period(exp: dict) -> str:
+    """Right-side role metadata: broad location, then attendance period."""
+    return " | ".join(
+        value
+        for value in (
+            str(exp.get("location") or "").strip(),
+            str(exp.get("period") or "").strip(),
+        )
+        if value
+    )
 
 
 def _edu_label(edu: dict) -> str:
@@ -339,11 +348,14 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
             continue
         _section(doc, heading)
         for exp in entries:
-            _entry_head(doc, _org_label(exp), str(exp.get("period") or ""))
+            _entry_head(doc, _org_label(exp), "")
             if exp.get("title"):
-                role = doc.add_paragraph()
-                role.paragraph_format.space_after = Pt(1)
-                _runs(role, str(exp["title"]), italic=True)
+                role = _entry_head(doc, str(exp["title"]), _location_period(exp))
+                for run in role.runs:
+                    if run.text and not run.text.startswith("\t"):
+                        run.italic = True
+            elif _location_period(exp):
+                _entry_head(doc, "", _location_period(exp))
             for bullet in exp.get("bullets") or []:
                 _bullet(doc, bullet)
 
@@ -580,11 +592,23 @@ def generate_cv_pdf(data: dict, full_name: str) -> bytes | None:
                 parts.append(
                     "<div class='entry-head'>"
                     f"<span class='entry-org'>{_inline(_org_label(exp))}</span>"
-                    f"<span class='entry-period'>{escape(str(exp.get('period') or ''))}</span>"
+                    "<span class='entry-period'></span>"
                     "</div>"
                 )
                 if exp.get("title"):
-                    parts.append(f"<p class='entry-role'>{escape(str(exp['title']))}</p>")
+                    parts.append(
+                        "<div class='entry-head'>"
+                        f"<span class='entry-role'>{escape(str(exp['title']))}</span>"
+                        f"<span class='entry-period'><i>{escape(_location_period(exp))}</i></span>"
+                        "</div>"
+                    )
+                elif _location_period(exp):
+                    parts.append(
+                        "<div class='entry-head'>"
+                        "<span class='entry-role'></span>"
+                        f"<span class='entry-period'><i>{escape(_location_period(exp))}</i></span>"
+                        "</div>"
+                    )
                 parts += _bullets_html(exp.get("bullets"))
                 parts.append("</div>")
 
