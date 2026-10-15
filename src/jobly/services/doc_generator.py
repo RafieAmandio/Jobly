@@ -290,7 +290,8 @@ def generate_cv_docx(data: dict, full_name: str) -> bytes:
         section.bottom_margin = Inches(0.45)
         section.left_margin = Inches(0.51)
         section.right_margin = Inches(0.51)
-        header = section.header
+        section.different_first_page_header_footer = True
+        header = section.first_page_header
         header_p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         header_p.paragraph_format.space_after = Pt(4)
@@ -412,7 +413,11 @@ def generate_cover_letter_docx(
 _CV_CSS = """
 @page {
   size: A4;
-  margin: 0.78in 0.51in 0.5in;
+  margin: 0.5in 0.51in;
+  @top-center { content: none; }
+}
+@page:first {
+  margin-top: 0.78in;
   @top-center { content: element(cv-header); }
 }
 html, body { margin: 0; padding: 0; }

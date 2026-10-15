@@ -1,6 +1,7 @@
 from io import BytesIO
 from zipfile import ZipFile
 
+import pdfplumber
 from docx import Document
 
 from jobly.services.doc_generator import (
@@ -88,7 +89,7 @@ def test_generate_cv_docx_with_contact_and_extra_sections():
     }
     result = generate_cv_docx(data, "Rafie Amandio Fauzan")
     parsed = Document(BytesIO(result))
-    header_text = [p.text for p in parsed.sections[0].header.paragraphs]
+    header_text = [p.text for p in parsed.sections[0].first_page_header.paragraphs]
     body_text = [p.text for p in parsed.paragraphs]
 
     assert isinstance(result, bytes)
@@ -165,7 +166,7 @@ def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
     result = generate_cv_docx(data, "Dharma Setiawan")
     parsed = Document(BytesIO(result))
     text = [p.text for p in parsed.paragraphs]
-    header_text = [p.text for p in parsed.sections[0].header.paragraphs]
+    header_text = [p.text for p in parsed.sections[0].first_page_header.paragraphs]
 
     assert parsed.styles["Normal"].font.name == "Times New Roman"
     assert round(parsed.styles["Normal"].font.size.pt) == 10
@@ -176,16 +177,22 @@ def test_generate_cv_docx_uses_running_header_and_renders_leadership_org():
     assert any("BEM UI" in t for t in text)
     assert any("Managed Rp 120M budget" in t for t in text)
     assert any("Dharma" in t and "Hong Kong SAR | dharma@example.com" in t for t in header_text)
+    assert parsed.sections[0].different_first_page_header_footer is True
+    assert not any(p.text.strip() for p in parsed.sections[0].header.paragraphs)
 
     with ZipFile(BytesIO(result)) as zf:
-        header_xml = zf.read("word/header1.xml").decode("utf-8")
+        header_paths = [name for name in zf.namelist() if name.startswith("word/header")]
+        header_xml = "\n".join(zf.read(name).decode("utf-8") for name in header_paths)
         assert "Dharma" in header_xml
         assert 'w:sz w:val="32"' in header_xml
         assert "Hong Kong SAR" in header_xml
         assert "dharma@example.com" in header_xml
 
-        rels_xml = zf.read("word/_rels/header1.xml.rels").decode("utf-8")
+        rel_paths = [name for name in zf.namelist() if name.startswith("word/_rels/header")]
+        rels_xml = "\n".join(zf.read(name).decode("utf-8") for name in rel_paths)
         assert "mailto:dharma@example.com" in rels_xml
+        document_xml = zf.read("word/document.xml").decode("utf-8")
+        assert "w:titlePg" in document_xml
 
 
 def test_generate_cv_pdf_renders_large_name_separate_from_contact():
@@ -199,6 +206,30 @@ def test_generate_cv_pdf_renders_large_name_separate_from_contact():
 
     assert isinstance(result, bytes)
     assert b"font-size: 16pt" in result or result.startswith(b"%PDF")
+
+
+def test_generate_cv_pdf_only_has_header_on_first_page():
+    data = {
+        "display_name": "Dharma Setiawan",
+        "contact": {"email": "dharma@example.com"},
+        "summary": "Management Trainee and PM/BA profile.",
+        "extra_miles": [
+            f"Achievement {index}: delivered measurable operational improvement across a complex project"
+            for index in range(200)
+        ],
+    }
+
+    result = generate_cv_pdf(data, "Dharma Setiawan")
+    assert isinstance(result, bytes)
+    with pdfplumber.open(BytesIO(result)) as pdf:
+        assert len(pdf.pages) >= 2
+        first_page = pdf.pages[0].extract_text() or ""
+        second_page = pdf.pages[1].extract_text() or ""
+
+    assert "Dharma Setiawan" in first_page
+    assert "dharma@example.com" in first_page
+    assert "Dharma Setiawan" not in second_page
+    assert "dharma@example.com" not in second_page
 
 
 def test_generate_cv_docx_omits_missing_optional_education_rows():
